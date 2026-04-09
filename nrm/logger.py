@@ -16,7 +16,6 @@ from nrm.dataset.reachability_manifold import estimate_reachable_ball
 from nrm.visualisation import get_pose_traces
 from nrm.model import Model
 from nrm.dataset.loader import TrainingSet, ValidationSet
-from nrm.dataset.kinematics import inverse_kinematics, transformation_matrix
 from nrm.visualisation import display_geodesic, display_slice, display_sphere
 
 
@@ -54,28 +53,10 @@ class Logger:
         self.run = self.setup_wandb(metadata, trial)
         self.folder = self.save_metadata(metadata)
 
-        # For graphics
-        self.geodesic_morph, self.geodesic_poses, self.geodesic_labels = self.generate_geodesic()
-        self.geodesic_filter = self._get_ood_filter_ood(self.geodesic_morph[0], self.geodesic_poses)
-        self.slice_morph, self.slice_poses, self.slice_labels = self.generate_slice()
-        self.slice_filter = self._get_ood_filter_ood(self.slice_morph[0], self.slice_poses)
-        self.sphere_morph, self.sphere_poses, self.sphere_labels, self.sphere_radius = self.generate_sphere()
-        self.sphere_filter = self._get_ood_filter_ood(self.sphere_morph[0], self.sphere_poses)
-        # For metric
-        self.boundary_morph = []
-        self.boundary_pose = []
-        self.boundary_label = []
-        self.boundary_filter = []
-        for i in range(100):
-            morph, poses, labels = self.generate_geodesic(100, True)
-            self.boundary_morph += [morph]
-            self.boundary_pose += [poses]
-            self.boundary_label += [labels]
-            self.boundary_filter += [self._get_ood_filter_ood(morph[0], poses).float()]
-        self.boundary_morph = torch.cat(self.boundary_morph, dim=0)
-        self.boundary_pose = torch.cat(self.boundary_pose, dim=0)
-        self.boundary_label = torch.cat(self.boundary_label, dim=0)
-        self.boundary_filter = torch.cat(self.boundary_filter, dim=0)
+        self.boundary_set = ValidationSet(batch_size, False, validation_set.path + "_boundary")
+        self.geodesic_set = ValidationSet(batch_size, False, validation_set.path + "_geodesic")
+        self.slice_set = ValidationSet(batch_size, False, validation_set.path + "_slice")
+        self.sphere_set = ValidationSet(batch_size, False, validation_set.path + "_sphere")
 
         self.buffer = {}
 
@@ -102,108 +83,6 @@ class Logger:
         json.dump(metadata, open(folder / 'metadata.json', 'w'), indent=4)
         return folder
 
-    def _get_one_robot(self, random: bool = False) -> tuple[
-        Float[Tensor, "dofp1 3"],
-        Float[Tensor, "batch 4 4"],
-        Bool[Tensor, "batch"]]:
-        if random:
-            batch_idx = torch.randint(0, self.validation_set.num_batches, (1,)).item()
-            morphs, poses, labels = self.validation_set[batch_idx]
-            morph_ids = self.validation_set._get_batch(batch_idx)[:, 0].long()
-        else:
-            morphs, poses, labels = self.validation_set[0]
-            morph_ids = self.validation_set._get_batch(0)[:, 0].long()
-
-        for i in morph_ids.unique():
-            mask = i == morph_ids
-            morph = morphs[mask][0]
-            pose = poses[mask]
-            label = labels[mask]
-            if label.sum() != label.shape[0] and label.sum() != 0:
-                return morph, se3.from_vector(pose), label
-        return self._get_one_robot(True)
-
-    @staticmethod
-    def _get_ood_filter_ood(morph: Float[Tensor, "dofp1 3"], poses: Float[Tensor, "batch 4 4"]) -> Bool[
-        Tensor, "batch"]:
-        poses = se3.from_vector(poses)
-
-        centre, radius_s = estimate_reachable_ball(morph[:-1])
-        mat = torch.linalg.inv(
-            transformation_matrix(morph[-1, 0:1], morph[-1, 1:2], morph[-1, 2:3], torch.zeros_like(morph[-1, 0:1])))
-        mask = ((poses @ mat)[:, :3, 3] - centre).norm(dim=-1) < radius_s
-
-        return mask
-
-    def generate_geodesic(self, num_samples:int = 1000, random: bool = False) -> tuple[
-        Float[Tensor, "num_samples dofp1 3"],
-        Float[Tensor, "num_samples 9"],
-        Bool[Tensor, "num_samples"]]:
-        geodesic_morph, pose, label = self._get_one_robot(random)
-
-        start = pose[label][0]
-        end = pose[~label][0]
-
-        tangent = se3.log(start, end)
-        t = torch.linspace(0, 1, num_samples).view(-1, 1)
-        geodesic_poses = se3.exp(start.unsqueeze(0).repeat(num_samples, 1, 1), t * tangent)
-        geodesic_labels = inverse_kinematics(geodesic_morph.double(), geodesic_poses.double())[1] != -1
-
-        return (geodesic_morph.unsqueeze(0).expand(num_samples, -1, -1).clone().pin_memory(),
-                se3.to_vector(geodesic_poses).pin_memory(), geodesic_labels)
-
-    def generate_slice(self) -> tuple[Float[Tensor, "10000 dofp1 3"], Float[Tensor, "10000 9"], Bool[Tensor, "10000"]]:
-        slice_morph, pose, label = self._get_one_robot()
-
-        mat = transformation_matrix(slice_morph[0, 0:1],
-                                    slice_morph[0, 1:2],
-                                    slice_morph[0, 2:3],
-                                    torch.zeros_like(slice_morph[0, 0:1]))
-        torus_axis = torch.nn.functional.normalize(mat[:3, 2], dim=0)
-        centre, radius = estimate_reachable_ball(slice_morph)
-        fixed_axes = torch.argmax(torus_axis.abs())
-        axes_mask = torch.ones(3, dtype=torch.bool)
-        axes_mask[fixed_axes] = False
-        axes_range = torch.linspace(-radius, radius, 100)
-
-        anchor = pose[label][torch.median(pose[label][:, :3, 3].norm(dim=1), dim=0).indices]
-        slice_poses = anchor.unsqueeze(0).expand(100 * 100, -1, -1).clone()
-        slice_poses[:, :3, 3][:, axes_mask] = centre[axes_mask]
-
-        slice_poses[:, :3, 3][:, axes_mask] += torch.stack(torch.meshgrid(axes_range, axes_range, indexing='ij'),
-                                                           dim=-1).reshape(-1, 2)
-        slice_labels = inverse_kinematics(slice_morph.double(), slice_poses.double())[1] != -1
-
-        return slice_morph.unsqueeze(0).expand(10000, -1, -1).clone().pin_memory(), se3.to_vector(
-            slice_poses).pin_memory(), slice_labels
-
-    def generate_sphere(self) -> tuple[
-        Float[Tensor, "10000 dofp1 3"],
-        Float[Tensor, "10000 9"],
-        Bool[Tensor, "10000"],
-        float]:
-        sphere_morph, pose, label = self._get_one_robot()
-
-        centre, radius = estimate_reachable_ball(sphere_morph)
-
-        sphere_anchor = pose[label][torch.median(pose[label][:, :3, 3].norm(dim=1), dim=0).indices]
-        sphere_poses = sphere_anchor.unsqueeze(0).expand(100 * 100, -1, -1).clone()
-        sphere_poses[:, :3, 3] = centre
-
-        theta = torch.linspace(0, torch.pi, 100)
-        phi = torch.linspace(0, 2 * torch.pi, 100)
-        theta_grid, phi_grid = torch.meshgrid(theta, phi, indexing='ij')
-
-        x = sphere_anchor[:3, 3].norm() * torch.sin(theta_grid) * torch.cos(phi_grid)
-        y = sphere_anchor[:3, 3].norm() * torch.sin(theta_grid) * torch.sin(phi_grid)
-        z = sphere_anchor[:3, 3].norm() * torch.cos(theta_grid)
-
-        sphere_poses[:, :3, 3] = centre + torch.stack([x, y, z], dim=-1).reshape(-1, 3)
-        sphere_labels = inverse_kinematics(sphere_morph.double(), sphere_poses.double())[1] != -1
-
-        return sphere_morph.unsqueeze(0).expand(10000, -1, -1).clone().pin_memory(), se3.to_vector(
-            sphere_poses).pin_memory(), sphere_labels, sphere_anchor[:3, 3].norm()
-
     def save_model(self):
         torch.save(self.model.state_dict(), self.folder / "checkpoint.pth")
 
@@ -222,35 +101,33 @@ class Logger:
                    'False Positives': false_positives,
                    'False Negatives': false_negatives,
                    'Accuracy': accuracy,
-                   'F1 Score': 2 * true_positives / (2 * true_positives + false_positives + false_negatives) * 100 if true_positives + false_positives + false_negatives != 0 else 100,
+                   'F1 Score': 2 * true_positives / (
+                           2 * true_positives + false_positives + false_negatives) * 100 if true_positives + false_positives + false_negatives != 0 else 100,
                    'Predictions': wandb.Histogram(np_histogram=(hist, bin_edges)),
                    }
 
         return metrics
 
+    def evaluate_set(self, eval_set: ValidationSet) -> tuple[Tensor, Tensor]:
+        labels = []
+        logits = []
+        for batch_idx, (morph, pose, label) in enumerate(eval_set):
+            morph = morph.to(self.device, non_blocking=True)
+            pose = pose.to(self.device, non_blocking=True)
+            labels += [label]
+            logits += [self.model.predict(morph, pose).cpu()]
+        return torch.cat(logits, dim=0), torch.cat(labels, dim=0)
+
     def compute_boundary_metrics(self) -> dict:
-        boundary_logits = self.model.predict(self.boundary_morph.to(self.device, non_blocking=True),
-                                          self.boundary_pose.to(self.device, non_blocking=True)).cpu()
-        metrics = self.compute_metrics(boundary_logits * self.boundary_filter, self.boundary_label)
+        metrics = self.compute_metrics(*self.evaluate_set(self.boundary_set))
 
-        geodesic_logits = self.model.predict(self.geodesic_morph.to(self.device, non_blocking=True),
-                                             self.geodesic_poses.to(self.device, non_blocking=True)).cpu()
-        geodesic_pred = (torch.nn.Sigmoid()(geodesic_logits) > 0.5) & self.geodesic_filter
-        metrics["Geodesic"] = display_geodesic([geodesic_pred, self.geodesic_labels],
-                                               ["Prediction", "Truth"], True)
-
-        slice_logits = self.model.predict(self.slice_morph.to(self.device, non_blocking=True),
-                                          self.slice_poses.to(self.device, non_blocking=True)).cpu()
-        slice_pred = (torch.nn.Sigmoid()(slice_logits) > 0.5) & self.slice_filter
-        metrics["Slice"] = display_slice([slice_pred, self.slice_labels],
-                                         ["Prediction", "Truth"], self.slice_morph[0], True)
-
-        sphere_logits = self.model.predict(self.sphere_morph.to(self.device, non_blocking=True),
-                                           self.sphere_poses.to(self.device,
-                                                                non_blocking=True)).cpu()
-        sphere_pred = (torch.nn.Sigmoid()(sphere_logits) > 0.5) & self.sphere_filter
-        metrics["Sphere"] = display_sphere([sphere_pred, self.sphere_labels],
-                                           ["Prediction", "Truth"], self.sphere_radius, True)
+        for name, eval_set, fn, params in zip(["Geodesic", "Slice", "Sphere"],
+                                      [self.geodesic_set, self.slice_set, self.sphere_set],
+                                      [display_geodesic, display_slice, display_sphere],
+                                      [[], [self.slice_set.morphologies[0]], [self.sphere_set[0][1][0, :3].norm()]]):
+            logit, label = self.evaluate_set(eval_set)
+            pred = (torch.nn.Sigmoid()(logit) > 0.5)
+            metrics[name] = fn([pred, label], ["Prediction", "Truth"], *params, True)
 
         return metrics
 
