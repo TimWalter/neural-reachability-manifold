@@ -8,11 +8,11 @@ from jaxtyping import Float, Int64, jaxtyped
 
 from scipy.spatial.transform import Rotation
 
-enabled = os.environ.get("SCIPY_ARRAY_API", "").lower() in ("1", "true", "yes")
+enabled = os.environ.get("SCIPY_ARRAY_API", "").lower() in ("1")
 if not enabled:
     raise RuntimeError(
         "SCIPY_ARRAY_API must be enabled! "
-        "Please run: export SCIPY_ARRAY_API=\"true\" before importing this module"
+        "Please run: export SCIPY_ARRAY_API=1 before importing this module"
     )
 
 
