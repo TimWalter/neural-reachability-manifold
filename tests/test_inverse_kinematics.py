@@ -14,7 +14,7 @@ def test_pure_analytical_inverse_kinematics():
     torch.manual_seed(1)
     n_samples = 1000
     n_robots = 10
-    morphs = sample_morph(n_robots, 6, True)
+    morphs = sample_morph(n_robots, 6, True, torch.device("cpu"))
     for morph_idx, morph in enumerate(morphs):
         joint_limits = get_joint_limits(morph).unsqueeze(0).expand(n_samples, -1, -1)
         morph = morph.unsqueeze(0).expand(n_samples, -1, -1)
@@ -44,7 +44,7 @@ def test_analytical_inverse_kinematics():
     torch.manual_seed(1)
     n_samples = 1000
     n_robots = 10
-    morphs = sample_morph(n_robots, 6, True)
+    morphs = sample_morph(n_robots, 6, True, torch.device("cpu"))
 
     for i, morph in enumerate(morphs):
         joint_limits = get_joint_limits(morph).unsqueeze(0).expand(n_samples, -1, -1)
@@ -76,8 +76,8 @@ def test_numerical_inverse_kinematics():
     n_samples = 100
     n_robots = 5
 
-    morphs_analytical = sample_morph(n_robots, 6, True)
-    morphs_general = sample_morph(n_robots, 6, False)
+    morphs_analytical = sample_morph(n_robots, 6, True, torch.device("cpu"))
+    morphs_general = sample_morph(n_robots, 6, False, torch.device("cpu"))
 
     for j, morphs in enumerate([morphs_analytical, morphs_general]):
         for i, morph in enumerate(morphs):

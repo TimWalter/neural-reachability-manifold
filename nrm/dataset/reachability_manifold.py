@@ -22,7 +22,7 @@ torch.set_float32_matmul_precision("high")
 
 
 # @jaxtyped(typechecker=beartype)
-def sample_reachable_poses(morph: Float[Tensor, "dof 3"], joint_limits: Float[Tensor, "batch_size dof 2"]) -> tuple[
+def sample_reachable_poses(morph: Float[Tensor, "*batch dof 3"], joint_limits: Float[Tensor, "*batch dof 2"]) -> tuple[
     Float[Tensor, "n_valid 4 4"],
     Int64[Tensor, "n_valid"],
 ]:
@@ -40,7 +40,7 @@ def sample_reachable_poses(morph: Float[Tensor, "dof 3"], joint_limits: Float[Te
         ..., 1:2]
     poses = forward_kinematics(morph, joints)
     self_collision = collision_check(morph, poses)
-    poses = poses[:, -1, :, :][~self_collision]
+    poses = poses[..., -1, :, :][~self_collision]
     cell_indices = se3.index(poses)
     return poses, cell_indices
 

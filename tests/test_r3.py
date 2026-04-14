@@ -87,7 +87,7 @@ def test_nn():
 
 
 def test_random_ball():
-    morph = sample_morph(1, 6, True)[0]
+    morph = sample_morph(1, 6, True, torch.device("cpu"))[0]
     centre, radius = estimate_reachable_ball(morph)
     positions = r3.random_ball(100_000, centre, radius)
 

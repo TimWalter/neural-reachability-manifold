@@ -14,7 +14,7 @@ def main(model_class: Type[Model],
          batch_size: int):
     device = torch.device("cuda")
 
-    validation_set = ValidationSet(batch_size, False)
+    validation_set = ValidationSet(batch_size, False, "test_numerical")
 
     model = model_class.from_id(model_id).to(device)
     #model = torch.compile(model)
@@ -41,7 +41,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_class", type=str, default="MLP")
-    parser.add_argument("--model_id", type=int, default=1305)
+    parser.add_argument("--model_id", type=int, default=13)
     parser.add_argument("--batch_size", type=int, default=1000)
 
     args = parser.parse_args()

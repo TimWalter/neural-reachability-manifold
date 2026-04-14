@@ -1,3 +1,5 @@
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 import math
 
 import numpy as np
@@ -184,7 +186,7 @@ def get_pose_traces(mdh, poses, color, name, show_legend: bool = False):
         z=plot_data[:, 2],
         mode='lines',
         opacity=opacity,
-        line=dict(color=color, width=2),
+        line=dict(color=color, width=4),
         name=name,
         legendgroup=legend_group,
         showlegend=show_legend  # Controlled by parent function
@@ -195,7 +197,7 @@ def get_pose_traces(mdh, poses, color, name, show_legend: bool = False):
         y=origins[:, 1],
         z=origins[:, 2],
         mode='markers',
-        marker=dict(size=1, color=color, opacity=opacity),
+        marker=dict(size=5, color=color, opacity=opacity),
         legendgroup=legend_group,
         showlegend=False,
         hoverinfo='skip'
@@ -417,7 +419,16 @@ def display_geodesic(preds, names, return_fig: bool = False):
         fig.show()
 
 
-def display_slice(preds, names, morph, return_fig: bool = False):
+def display_slice(preds, names, morph, name:str=None):
+    sns.set_style("ticks")
+    plt.rcParams.update({
+        "text.usetex": True,
+        "font.family": "serif",
+        "pgf.rcfonts": False,
+        "text.latex.preamble": r"\usepackage{amsmath}",
+
+    })
+
     n_plots = len(preds)
     n_rows = max(1, math.ceil(len(preds) / 2))
     n_cols = min(2, n_plots)
@@ -435,98 +446,84 @@ def display_slice(preds, names, morph, return_fig: bool = False):
     axes_mask[fixed_axes] = False
 
     axes_range = torch.linspace(-radius, radius, steps)
+    limit = radius.item() if torch.is_tensor(radius) else radius
 
-    fig = make_subplots(
-        rows=n_rows, cols=n_cols,
-        subplot_titles=names,
-        horizontal_spacing=0.1,
-        vertical_spacing=0.15
-    )
     # Determine axis labels based on your mask
-    axis_names = ['X', 'Y', 'Z']
+    axis_names = ['x', 'y', 'z']
     x_label, y_label = [axis_names[i] for i, m in enumerate(axes_mask) if m]
-    coords = axes_range
+
+    # 1. Setup Figure and Axes
+    # 400px ~ 4 inches (assuming default 100 dpi)
+    fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols,
+                            figsize=(4 * n_cols, 4 * n_rows),
+                            squeeze=False)
+    axs = axs.flatten()
+
+    # Create the custom colormap matching Plotly's [[0, '#ffffff'], [1, '#555555']]
+    cmap = mcolors.LinearSegmentedColormap.from_list("custom_grey", ["#ffffff00", "#555555ff"])
+
+    # Font dictionary to mimic Plotly layout updates
+    font_dict = {
+        'family': 'serif',
+        'fontname': 'Times New Roman', # Falls back to serif if not installed
+        'size': 24
+    }
+
     for i, pred in enumerate(preds):
-        fig.add_trace(
-            go.Heatmap(
-                z=pred.reshape(steps, steps).float(),
-                x=coords,
-                y=coords,
-                colorscale=[[0, '#ffffff'], [1, '#555555']],
-                showscale=False,
-                hovertemplate=f"{x_label}: %{{x}}<br>{y_label}: %{{y}}<br>Value: %{{z}}<extra></extra>"
-            ),
-            row=(i // 2) + 1, col=(i % 2) + 1
-        )
+        ax = axs[i]
+        Z = pred.reshape(steps, steps).detach().cpu().float().numpy()
 
-    fig.update_layout(
-        height=400 * n_rows,
-        width=400 * n_cols
-    )
-    fig.update_xaxes(
-        title_text=x_label if  not return_fig else '',
-        showticklabels=False,
-        showgrid=False,
-        zeroline=False,
-        showline= not return_fig,      # Enables the axis line
-        linewidth=1,        # Border thickness
-        linecolor='rgba(0,0,0,0.25)',  # Border color
-        mirror=True,        # Ensures the border appears on all 4 sides
-        title_font_size=24
-    )
-    fig.update_yaxes(
-        title_text=y_label if  not return_fig else '',
-        showticklabels=False,
-        showgrid=False,
-        zeroline=False,
-        showline=not return_fig,      # Enables the axis line
-        linewidth=1,        # Border thickness
-        linecolor='rgba(0,0,0,0.25)',  # Border color
-        mirror=True,        # Ensures the border appears on all 4 sides
-        title_font_size=24
-    )
-    fig.update_layout(
-        font=dict(
-            family="Times New Roman, TeX Gyre Termes, serif", # Match your LaTeX font
-            size=24
-        ),
-        template="plotly_white",
-    )
-    fig.update_annotations(
-        font=dict(
-            family="Times New Roman, TeX Gyre Termes, serif",  # Matches the "Reachability" and "Geodesic Progress" labels [cite: 1, 12]
-            size=24,         # Adjust this number to your preferred header size
-        )
-    )
+        # 1. DRAW CENTER CROSSHAIR (Bottom Layer)
+        ax.axhline(0,  color='black', linewidth=1, alpha=0.1, zorder=1)
+        ax.axvline(0, color='black', linewidth=1, alpha=0.1, zorder=1)
 
-    if return_fig:
-        # 1. Remove all margins and titles
-        fig.update_layout(
-            margin=dict(l=0, r=0, t=0, b=0),
-            showlegend=False,
-            title_text='',
-        )
-        # 2. Kill the subplot titles (annotations)
-        fig.layout.annotations = []
+        # 2. DRAW GRAPHIC (Top Layer)
+        ax.imshow(Z, extent=[-limit, limit, -limit, limit],
+                  origin='lower', cmap=cmap, aspect='equal', zorder=2)
 
-        # 3. Completely hide axes and their containers
-        fig.update_xaxes(
-            showticklabels=False,
-            showgrid=False,
-            zeroline=False,
-            showline=False,
-            title_text=''
-        )
-        fig.update_yaxes(
-            showticklabels=False,
-            showgrid=False,
-            zeroline=False,
-            showline=False,
-            title_text=''
-        )
-        return fig
+        # 4. PLACE LABELS INSIDE THE CORNERS
+        # Using transAxes (0 to 1) makes these independent of the data 'limit'
+        text_opts = {'fontsize': 18, 'color': 'gray', 'zorder': 4}
+
+        ax.text(0.07, limit-0.12, '$1$', va='bottom', ha='center', **text_opts)
+        ax.text(limit-0.07, +0.07, '$1$', va='center', ha='left', **text_opts)
+        ax.text(-0.07, -limit, '$-1$', va='bottom', ha='center', **text_opts)
+        ax.text(-limit, -0.07, '$-1$', va='center', ha='left', **text_opts)
+
+        # 5. AXIS LABELS (x, y, z) - Just outside the box
+        ax.text(limit-0.07, -0.07, f'${x_label}$', va='center', ha='left', **text_opts)
+        ax.text(-0.07, limit-0.12, f'${y_label}$', va='bottom', ha='center', **text_opts)
+
+        # 6. REMOVE BORDER AND DEFAULT TICKS
+        ax.set_xticks([])
+        ax.set_yticks([])
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+
+    # Remove any empty subplots if n_plots is odd
+    for j in range(i + 1, len(axs)):
+        fig.delaxes(axs[j])
+
+    if name:
+        # 1. Clear margins and UI
+        fig.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
+
+        # 2. Transparent backgrounds
+        fig.patch.set_alpha(0.0)
+        for ax in axs:
+            ax.patch.set_alpha(0.0)
+
+            # 3. Tighten the axes boundaries natively
+            ax.set_xlim([-limit, limit])
+            ax.set_ylim([-limit, limit])
+            ax.get_xaxis().set_visible(False)
+            ax.get_yaxis().set_visible(False)
+
+        plt.savefig(name, bbox_inches="tight", pad_inches=0,dpi=600,transparent=True)
     else:
-        fig.show()
+        # Prevent labels from overlapping
+        plt.tight_layout()
+        plt.show()
 
 
 def display_sphere(preds, names, radius, return_fig: bool = False):

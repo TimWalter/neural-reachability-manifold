@@ -1,16 +1,16 @@
 import torch
 from tabulate import tabulate
 
-import neural_capability_maps.dataset.se3 as se3
-from neural_capability_maps.dataset.capability_map import sample_poses_in_reach, estimate_capability_map
-from neural_capability_maps.dataset.kinematics import analytical_inverse_kinematics
-from neural_capability_maps.dataset.morphology import sample_morph
+import nrm.dataset.se3 as se3
+from nrm.dataset.reachability_manifold import sample_poses_in_reach, estimate_reachability_manifold
+from nrm.dataset.kinematics import analytical_inverse_kinematics
+from nrm.dataset.morphology import sample_morph
 
-from neural_capability_maps.logger import binary_confusion_matrix
+from nrm.logger import binary_confusion_matrix
 
 torch.manual_seed(1)
 
-morphs = sample_morph(10, 6, True)
+morphs = sample_morph(10, 6, True, torch.device("cpu"))
 
 tp = []
 fn = []
@@ -35,7 +35,7 @@ for morph_idx, morph in enumerate(morphs):
     true_positives = 0.0
     r_indices = torch.empty(0, dtype=torch.int64)
     while true_positives < 95.0 and minutes[-1] < 30:
-        new_r_indices, benchmark = estimate_capability_map(morph, True)
+        new_r_indices, benchmark = estimate_reachability_manifold(morph, True)
         r_indices = torch.cat([r_indices, new_r_indices]).unique()
         benchmarks += [torch.tensor(benchmark)]
         minutes[-1] += 1
