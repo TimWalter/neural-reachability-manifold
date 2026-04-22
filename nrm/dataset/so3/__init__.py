@@ -16,6 +16,18 @@ if not enabled:
     )
 
 
+class SafeArccos(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input):
+        ctx.save_for_backward(input)
+        return torch.arccos(input)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        denom = torch.sqrt(torch.maximum(1.0 - ctx.saved_tensors[0] ** 2, 1e-7 * torch.ones_like(ctx.saved_tensors[0])))
+        return -grad_output / denom
+
+
 # @jaxtyped(typechecker=beartype)
 def distance(x1: Float[Tensor, "*batch 3 3"],
              x2: Float[Tensor, "*batch 3 3"]) -> Float[Tensor, "*batch 1"]:
@@ -33,7 +45,7 @@ def distance(x1: Float[Tensor, "*batch 3 3"],
     trace = r_err[..., 0, 0] + r_err[..., 1, 1] + r_err[..., 2, 2]
     cos_angle = (trace - 1.0) / 2.0
     cos_angle = torch.clamp(cos_angle, -1.0, 1.0)
-    rot_err = torch.arccos(cos_angle)
+    rot_err = SafeArccos.apply(cos_angle)
     return rot_err.unsqueeze(-1)
 
 
@@ -267,6 +279,8 @@ def to_index(orientation: Float[Tensor, "batch 3 3"]) -> Float[Tensor, "batch 3"
 
     Returns:
         Rotation vector
+    Notes:
+        This seems differentiable via torch.autograd, but is only since version 2.12.
     """
     return Rotation.from_matrix(orientation, assume_valid=True).as_rotvec()
 
@@ -281,6 +295,8 @@ def from_index(rot_vec: Float[Tensor, "batch 3"]) -> Float[Tensor, "batch 3 3"]:
 
     Returns:
         Rotation matrix
+    Notes:
+        This seems differentiable via torch.autograd, but is only since version 2.12.
     """
     return Rotation.from_rotvec(rot_vec).as_matrix()
 

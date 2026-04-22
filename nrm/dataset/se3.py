@@ -24,6 +24,20 @@ def set_level(level: int = 3):
 
 set_level()
 
+class SafeSqrt(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input):
+        result = torch.sqrt(input)
+        ctx.save_for_backward(result)
+        return result
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        result, = ctx.saved_tensors
+        grad_input = grad_output / (2 * result + 1e-11)
+        return grad_input
+
+
 
 # @jaxtyped(typechecker=beartype)
 def distance(x1: Float[Tensor, "*batch 4 4"], x2: Float[Tensor, "*batch 4 4"]) -> Float[Tensor, "*batch 1"]:
@@ -46,7 +60,7 @@ def distance(x1: Float[Tensor, "*batch 4 4"], x2: Float[Tensor, "*batch 4 4"]) -
     r1 = x1[..., :3, :3]
     t2 = x2[..., :3, 3]
     r2 = x2[..., :3, :3]
-    return torch.sqrt(r3.distance(t1, t2) ** 2 / 8 + so3.distance(r1, r2) ** 2 / (2 * torch.pi ** 2))
+    return SafeSqrt.apply(r3.distance(t1, t2) ** 2 / 8 + so3.distance(r1, r2) ** 2 / (2 * torch.pi ** 2))
 
 
 # @jaxtyped(typechecker=beartype)
