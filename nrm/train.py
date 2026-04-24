@@ -16,6 +16,7 @@ def main(model_class: Type[Model],
          batch_size: int,
          early_stopping: int,
          lr: float,
+         pretrain: int,
          trial: optuna.Trial = None):
     device = torch.device("cuda")
 
@@ -23,6 +24,8 @@ def main(model_class: Type[Model],
     validation_set = ValidationSet(batch_size, False)
 
     model = model_class(**hyperparameter).to(device)
+    if pretrain != -1:
+        model.from_id(pretrain)
     #model = torch.compile(model)
     loss_function = torch.nn.BCEWithLogitsLoss(reduction='mean')
 
@@ -92,6 +95,7 @@ if __name__ == '__main__':
     parser.add_argument("--batch_size", type=int, default=1000)
     parser.add_argument("--early_stopping", type=int, default=-1)
     parser.add_argument("--lr", type=float, default=3e-4)
+    parser.add_argument("--pretrain", type=int, default=-1)
 
     args = parser.parse_args()
     args.model_class = eval(args.model_class)
