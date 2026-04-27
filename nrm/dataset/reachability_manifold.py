@@ -180,7 +180,7 @@ def sample_reachability_manifold(morph: Float[Tensor, "dofp1 3"],
         Labels and indices encoding the discretised reachability manifold
     """
     poses = sample_poses_in_reach(num_samples, morph)
-    cell_indices = se3.index(poses)
+    cell_indices = se3.index(poses).cpu()
 
     if not use_ik:
         r_indices = estimate_reachability_manifold(morph, seconds=seconds)
