@@ -2,7 +2,7 @@ import torch
 from pathlib import Path
 from nrm.logger import Logger
 
-path = "test_numerical_geodesic"
+path = "test_numerical_boundary"
 
 se3_dist = torch.load(Path.cwd() / "data" / path / "se3_dist.pth")
 labels = torch.load(Path.cwd() / "data" / path / "labels.pth")

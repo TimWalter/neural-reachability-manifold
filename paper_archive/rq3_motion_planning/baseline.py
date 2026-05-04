@@ -125,7 +125,7 @@ def baseline(morph: Float[Tensor, "dofp1 3"], target_trajectory: Float[Tensor, "
     return (torch.tensor(loss_list),
             torch.tensor(prediction_loss_list),
             torch.tensor(deviation_loss_list),
-            torch.stack(reachability, dim=0),
+            torch.stack(reachability, dim=0) if logging else None,
             torch.tensor(pose_error_list),
             torch.tensor(self_collision_list),
             torch.from_dlpack(jax.lax.stop_gradient(trajectory)).cpu())
@@ -161,12 +161,10 @@ if __name__ == "__main__":
         torch.manual_seed(s)
         morph = sample_morph(1, 6, False, device)[0]
         joint_limits = get_joint_limits(morph)
-        start = sample_reachable_poses(morph, joint_limits)[0]
-        while start.shape[0] == 0:
-            start = sample_reachable_poses(morph, joint_limits)[0]
-        end = sample_reachable_poses(morph, joint_limits)[0]
-        while end.shape[0] == 0:
-            end = sample_reachable_poses(morph, joint_limits)[0]
+        reachable_poses = sample_reachable_poses(morph.unsqueeze(0).expand(10000, -1, -1),
+                                                 joint_limits.unsqueeze(0).expand(10000, -1, -1))[0]
+        start = reachable_poses[0]
+        end = reachable_poses[1]
 
         tangent = se3.log(start, end)
         t = torch.linspace(0, 1, num_samples, device=tangent.device).view(-1, 1)

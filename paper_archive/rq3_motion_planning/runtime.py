@@ -27,24 +27,22 @@ for size in sizes:
         torch.manual_seed(seed)
         morph = sample_morph(1, 6, False, device)[0]
         joint_limits = get_joint_limits(morph)
-        start = sample_reachable_poses(morph, joint_limits)[0]
-        while start.shape[0] == 0:
-            start = sample_reachable_poses(morph, joint_limits)[0]
-        end = sample_reachable_poses(morph, joint_limits)[0]
-        while end.shape[0] == 0:
-            end = sample_reachable_poses(morph, joint_limits)[0]
+        reachable_poses = sample_reachable_poses(morph.unsqueeze(0).expand(10000, -1, -1),
+                                                 joint_limits.unsqueeze(0).expand(10000, -1, -1))[0]
+        start = reachable_poses[0]
+        end = reachable_poses[1]
 
         tangent = se3.log(start, end)
         t = torch.linspace(0, 1, size, device=tangent.device).view(-1, 1)
         target_trajectory = se3.exp(start.repeat(size, 1, 1), t * tangent)
         start = datetime.now()
-        _ = baseline(morph, target_trajectory, 100, False)
+        _ = baseline(morph, target_trajectory, 10, False)
         base_time += [datetime.now() - start]
         start = datetime.now()
-        _ = ours(morph, target_trajectory, 100, False)
+        _ = ours(morph, target_trajectory, 10, False)
         ours_time += [datetime.now() - start]
-    base_time = torch.tensor([t.seconds + t.microseconds* 10**(-6) for t in base_time])
-    ours_time = torch.tensor([t.seconds + t.microseconds* 10**(-6) for t in ours_time])
+    base_time = torch.tensor([t.seconds *10+ t.microseconds* 10**(-5) for t in base_time])
+    ours_time = torch.tensor([t.seconds *10+ t.microseconds* 10**(-5) for t in ours_time])
     base_runtime.append(base_time)
     ours_runtime.append(ours_time)
 

@@ -3,7 +3,7 @@ from tabulate import tabulate
 
 import nrm.dataset.se3 as se3
 from nrm.dataset.reachability_manifold import sample_poses_in_reach, estimate_reachability_manifold
-from nrm.dataset.kinematics import analytical_inverse_kinematics
+from nrm.dataset.kinematics import inverse_kinematics
 from nrm.dataset.morphology import sample_morph
 
 from nrm.logger import binary_confusion_matrix
@@ -24,7 +24,7 @@ benchmarks = []
 for morph_idx, morph in enumerate(morphs):
     print(f"Morph_IDX: {morph_idx}")
     cell_indices = se3.index(sample_poses_in_reach(100_000, morph))
-    _, manipulability = analytical_inverse_kinematics(morph, se3.cell(cell_indices.to(morph.device)))
+    _, manipulability = inverse_kinematics(morph, se3.cell(cell_indices.to(morph.device)))
     ground_truth = manipulability != -1
     reachable += [ground_truth.sum() / ground_truth.shape[0] * 100]
 
@@ -35,10 +35,10 @@ for morph_idx, morph in enumerate(morphs):
     true_positives = 0.0
     r_indices = torch.empty(0, dtype=torch.int64)
     while true_positives < 95.0 and minutes[-1] < 30:
-        new_r_indices, benchmark = estimate_reachability_manifold(morph, True)
+        new_r_indices, benchmark, _ = estimate_reachability_manifold(morph, True, seconds=10)
         r_indices = torch.cat([r_indices, new_r_indices]).unique()
         benchmarks += [torch.tensor(benchmark)]
-        minutes[-1] += 1
+        minutes[-1] += 1/6
 
         labels = torch.isin(cell_indices, r_indices)
 
