@@ -53,7 +53,7 @@ save_dir.mkdir(parents=True, exist_ok=True)
 morph = torch.load(save_dir / "morph.pth")
 pose = torch.load(save_dir / "pose.pth")
 #
-# label = inverse_kinematics(morph.double(), pose.double())[1] != -1
+label = inverse_kinematics(morph.double().cpu(), pose.double().cpu())[1] != -1
 # display_slice([label.cpu()], [""], morph, "slice_ground-truth.pdf")
 #
 # model = MLP.from_id(13).to("cuda")
@@ -89,47 +89,47 @@ pose = torch.load(save_dir / "pose.pth")
 graph = pickle.load(open(save_dir / "graph.pickle", "rb"))
 data = pickle.load(open(save_dir / "data.pickle", "rb"))
 
-device = torch.device("cuda")
-batch_size = 1000
-num_samples = 32
-model = Model(network_args())
-model.load_state_dict(torch.load("/home/wtim/generative-graphik/saved_models/NRM/checkpoints/checkpoint.pth")["net"])
-model = model.to(device)
-se3_dist = []
-for batch_idx in tqdm(range(0, pose.shape[0], batch_size)):
-    current_data = data[batch_idx:batch_idx + batch_size]
-    current_batch_size = len(current_data)
-    current_morph = morph.unsqueeze(0).expand(current_batch_size, -1, -1)
-    current_pose = pose[batch_idx:batch_idx + current_batch_size]
-    predicted_pose = forward_pose(model,
-                                  current_data,
-                                  num_samples,
-                                  current_morph,
-                                  current_pose,
-                                  torch.zeros(current_batch_size).int(),
-                                  [graph])
-    se3_dist += [se3.distance(predicted_pose[:, -1], current_pose).cpu()]
+# device = torch.device("cuda")
+# batch_size = 1000
+# num_samples = 32
+# model = Model(network_args())
+# model.load_state_dict(torch.load("/home/wtim/generative-graphik/saved_models/NRM/checkpoints/checkpoint.pth")["net"])
+# model = model.to(device)
+# se3_dist = []
+# for batch_idx in tqdm(range(0, pose.shape[0], batch_size)):
+#     current_data = data[batch_idx:batch_idx + batch_size]
+#     current_batch_size = len(current_data)
+#     current_morph = morph.unsqueeze(0).expand(current_batch_size, -1, -1)
+#     current_pose = pose[batch_idx:batch_idx + current_batch_size]
+#     predicted_pose = forward_pose(model,
+#                                   current_data,
+#                                   num_samples,
+#                                   current_morph,
+#                                   current_pose,
+#                                   torch.zeros(current_batch_size).int(),
+#                                   [graph])
+#     se3_dist += [se3.distance(predicted_pose[:, -1], current_pose).cpu()]
+#
+# se3_dist = torch.cat(se3_dist, dim=0)
+#
+# torch.save(se3_dist, save_dir / "se3_dist.pth")
 
-se3_dist = torch.cat(se3_dist, dim=0)
+se3_dist = torch.load(save_dir / "se3_dist.pth")
 
-torch.save(se3_dist, save_dir / "se3_dist.pth")
-#
-# se3_dist = torch.load(save_dir / "se3_dist.pth")
-#
-# min_unreachable_distance = se3_dist[~label].min()
-# max_reachable_distance = se3_dist[label].max()
-#
-# if max_reachable_distance > min_unreachable_distance:
-#     threshold = min_unreachable_distance
-#     best_f1 = 0.0
-#     for candidate in torch.linspace(min_unreachable_distance, max_reachable_distance, 100):
-#         logit = se3_dist < candidate
-#         f1 = Logger.compute_metrics(logit.float()[:,0], label)["F1 Score"]
-#         if f1 > best_f1:
-#             threshold = candidate
-#             best_f1 = f1
-# else:
-#     threshold = (max_reachable_distance + min_unreachable_distance) / 2
-#
-# label_ggik = se3_dist < threshold
-# display_slice([label_ggik], [""], morph, "slice_ggik.pdf")
+min_unreachable_distance = se3_dist[~label].min()
+max_reachable_distance = se3_dist[label].max()
+
+if max_reachable_distance > min_unreachable_distance:
+    threshold = min_unreachable_distance
+    best_f1 = 0.0
+    for candidate in torch.linspace(min_unreachable_distance, max_reachable_distance, 100):
+        logit = se3_dist < candidate
+        f1 = Logger.compute_metrics(logit.float()[:,0], label)["F1 Score"]
+        if f1 > best_f1:
+            threshold = candidate
+            best_f1 = f1
+else:
+    threshold = (max_reachable_distance + min_unreachable_distance) / 2
+
+label_ggik = se3_dist < threshold
+display_slice([label_ggik], [""], morph, "slice_ggik.pdf")
