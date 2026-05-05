@@ -17,6 +17,10 @@ if not enabled:
 
 
 class SafeArccos(torch.autograd.Function):
+    """
+    Arccos function with hardened backward pass to avoid NaNs.
+    """
+
     @staticmethod
     def forward(ctx, input):
         ctx.save_for_backward(input)

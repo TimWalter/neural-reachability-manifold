@@ -112,6 +112,7 @@ def unique_indices(indices: Int[Tensor, "batch"],
 
     return indices, manipulability, other
 
+
 def is_analytically_solvable(morph: Float[Tensor, "batch_size dofp1 3"]) -> Bool[Tensor, "batch_size"]:
     """
     Determine whether a robot is solvable by EAIK.
@@ -145,6 +146,7 @@ def is_analytically_solvable(morph: Float[Tensor, "batch_size dofp1 3"]) -> Bool
             mask |= (morph[:, 3, 0] == 0) & ((morph[:, 2, 0] == 0) | (morph[:, 4, 0] == 0))
 
     return mask
+
 
 # @jaxtyped(typechecker=beartype)
 def inverse_kinematics(mdh: Float[Tensor, "dofp1 3"],
@@ -219,7 +221,7 @@ def pure_analytical_inverse_kinematics(mdh: Float[Tensor, "dofp1 3"], poses: Flo
         raise RuntimeError(f"EAIK bug.")
     joints = [torch.cat([torch.from_numpy(sol.Q.copy()).unsqueeze(-1),
                          torch.zeros(sol.num_solutions(), 1, 1)
-                         ],dim=1) if sol.num_solutions() != 0
+                         ], dim=1) if sol.num_solutions() != 0
               else torch.empty(0, mdh.shape[0], 1, dtype=torch.double)
               for sol in solutions]
 
@@ -319,7 +321,8 @@ def numerical_inverse_kinematics(inp_mdh: Float[Tensor, "dofp1 3"], inp_poses: F
             # 2. Compute Error (6D)
             error = torch.cat([r3.log(reached_pose[..., -1, :3, 3], poses[..., :3, 3]),
                                torch.einsum('bij,bj->bi', reached_pose[..., -1, :3, :3],
-                                            so3.log(reached_pose[..., -1, :3, :3], poses[..., :3, :3]))], dim=-1).unsqueeze(
+                                            so3.log(reached_pose[..., -1, :3, :3], poses[..., :3, :3]))],
+                              dim=-1).unsqueeze(
                 -1)
             active = error[..., 0].norm(dim=-1) > EPS
 
@@ -376,7 +379,6 @@ def numerical_inverse_kinematics(inp_mdh: Float[Tensor, "dofp1 3"], inp_poses: F
         # Strict success check
         mask = (best_error < EPS) & ~best_collision
         best_manipulability[~mask] = -1.0
-
 
         j.append(best_joints)
         m.append(best_manipulability)

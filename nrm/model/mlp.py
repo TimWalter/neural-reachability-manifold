@@ -30,10 +30,6 @@ class Encoder(nn.Module):
         self.lstm = nn.LSTM(3, dim_encoding, num_layers, dropout=drop_prob, batch_first=True, bias=False)
 
     def forward(self, morph: Float[Tensor, "batch seq 3"]) -> Float[Tensor, "batch dim_encoding"]:
-        if morph.is_nested:
-            lengths = torch.tensor([t.size(0) for t in morph.unbind()], device=morph.device)
-            morph = torch.nested.to_padded_tensor(morph, 0.0)
-            morph = nn.utils.rnn.pack_padded_sequence(morph, lengths, batch_first=True, enforce_sorted=False)
         _, (h, _) = self.lstm(morph)
         return h[-1]
 

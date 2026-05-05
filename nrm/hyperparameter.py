@@ -10,7 +10,7 @@ def objective(trial):
     kwargs.update({
         "hyperparameter": {
             "encoder_config": {
-                "dim_encoding": trial.suggest_int("enc_dim_encoding", 128, 1024, step=128),
+                "dim_encoding": trial.suggest_int("enc_dim_encoding", 16, 1024, step=16),
                 "num_layers": trial.suggest_int("num_layers", 1, 4),
                 "drop_prob": trial.suggest_float("drop_prob", 0.0, 1.0)
             },
@@ -19,11 +19,10 @@ def objective(trial):
                 "n_blocks": trial.suggest_int("n_blocks", 1, 12),
             },
         },
-        "batch_size": trial.suggest_categorical("batch_size", [1000, 2000, 2500, 4000, 5000, 10000, 25000, 50000, 100000]),
         "lr": trial.suggest_float("lr",  1e-5, 1e-3, log=True),
         "trial": trial,
     })
-    return main(**kwargs)
+    return main(**kwargs, batch_size=1000, pretrain=-1)
 
 
 if __name__ == "__main__":

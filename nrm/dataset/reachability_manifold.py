@@ -189,7 +189,16 @@ def sample_reachability_manifold(morph: Float[Tensor, "dofp1 3"],
         joints, manipulability = inverse_kinematics(morph, poses)
         labels = manipulability.cpu() != -1
 
-    return cell_indices if not return_poses else poses, labels
+    if morph.shape[0] < 7:
+        subsamples = num_samples // 4
+        bmorph = morph.unsqueeze(0).expand(subsamples, -1 ,-1)
+        joint_limits = get_joint_limits(morph).unsqueeze(0).expand(subsamples, -1, -1)
+        sub_poses, sub_cell_indices = sample_reachable_poses(bmorph, joint_limits)
+        subsamples = sub_poses.shape[0]
+        poses[:subsamples], cell_indices[:subsamples] = sub_poses.cpu(), sub_cell_indices.cpu()
+        labels[:subsamples] = True
+
+    return cell_indices if not return_poses else poses.cpu(), labels
 
 
 if __name__ == "__main__":

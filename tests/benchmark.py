@@ -2,15 +2,15 @@ import torch
 from tabulate import tabulate
 
 import nrm.dataset.se3 as se3
-from nrm.dataset.reachability_manifold import sample_poses_in_reach, estimate_reachability_manifold
+from nrm.dataset.reachability_manifold import sample_poses_in_reach, estimate_reachability_manifold, sample_reachable_poses
 from nrm.dataset.kinematics import inverse_kinematics
-from nrm.dataset.morphology import sample_morph
+from nrm.dataset.morphology import sample_morph, get_joint_limits
 
 from nrm.logger import binary_confusion_matrix
 
 torch.manual_seed(1)
 
-morphs = sample_morph(10, 6, True, torch.device("cpu"))
+morphs = sample_morph(10, 5, False, torch.device("cpu"))
 
 tp = []
 fn = []
@@ -28,6 +28,13 @@ for morph_idx, morph in enumerate(morphs):
     ground_truth = manipulability != -1
     reachable += [ground_truth.sum() / ground_truth.shape[0] * 100]
 
+    if morph.shape[0] < 7:
+        subsamples = 100_000 // 4
+        bmorph = morph.unsqueeze(0).expand(subsamples, -1 ,-1)
+        joint_limits = get_joint_limits(morph).unsqueeze(0).expand(subsamples, -1, -1)
+        _, sub_cell_indices = sample_reachable_poses(bmorph, joint_limits)
+        cell_indices[:sub_cell_indices.shape[0]] = sub_cell_indices.cpu()
+        ground_truth[:subsamples] = True
     cell_indices = cell_indices.cpu()
 
     morph = morph.to("cuda")

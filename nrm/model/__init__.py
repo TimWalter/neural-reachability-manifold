@@ -26,8 +26,12 @@ class Model(nn.Module):
         metadata = json.load(open(metadata_path, 'r'))
 
         model = cls(**metadata["hyperparameter"])
-        model_folder = str(model_dir / folder)
-        model.load_state_dict(torch.load(next(Path(model_folder).glob('*.pth'))))
+        model_folder = Path(str(model_dir / folder))
+        prime = model_folder / "model.pth"
+        if prime.exists():
+            model.load_state_dict(torch.load(prime))
+        else:
+            model.load_state_dict(torch.load(model_folder / "checkpoint.pth"))
         return model
 
     @torch.inference_mode()

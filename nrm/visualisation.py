@@ -186,7 +186,7 @@ def get_pose_traces(mdh, poses, color, name, show_legend: bool = False):
         z=plot_data[:, 2],
         mode='lines',
         opacity=opacity,
-        line=dict(color=color, width=4),
+        line=dict(color=color, width=1),
         name=name,
         legendgroup=legend_group,
         showlegend=show_legend  # Controlled by parent function
@@ -197,7 +197,7 @@ def get_pose_traces(mdh, poses, color, name, show_legend: bool = False):
         y=origins[:, 1],
         z=origins[:, 2],
         mode='markers',
-        marker=dict(size=5, color=color, opacity=opacity),
+        marker=dict(size=1, color=color, opacity=opacity),
         legendgroup=legend_group,
         showlegend=False,
         hoverinfo='skip'
@@ -419,7 +419,7 @@ def display_geodesic(preds, names, return_fig: bool = False):
         fig.show()
 
 
-def display_slice(preds, names, morph, name:str=None):
+def display_slice(preds, names, morph, name:str=None, return_fig:bool=False):
     sns.set_style("ticks")
     plt.rcParams.update({
         "text.usetex": True,
@@ -503,27 +503,29 @@ def display_slice(preds, names, morph, name:str=None):
     # Remove any empty subplots if n_plots is odd
     for j in range(i + 1, len(axs)):
         fig.delaxes(axs[j])
-
-    if name:
-        # 1. Clear margins and UI
-        fig.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
-
-        # 2. Transparent backgrounds
-        fig.patch.set_alpha(0.0)
-        for ax in axs:
-            ax.patch.set_alpha(0.0)
-
-            # 3. Tighten the axes boundaries natively
-            ax.set_xlim([-limit, limit])
-            ax.set_ylim([-limit, limit])
-            ax.get_xaxis().set_visible(False)
-            ax.get_yaxis().set_visible(False)
-
-        plt.savefig(name, bbox_inches="tight", pad_inches=0,dpi=600,transparent=True)
+    if  return_fig:
+        return fig
     else:
-        # Prevent labels from overlapping
-        plt.tight_layout()
-        plt.show()
+        if name:
+            # 1. Clear margins and UI
+            fig.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
+
+            # 2. Transparent backgrounds
+            fig.patch.set_alpha(0.0)
+            for ax in axs:
+                ax.patch.set_alpha(0.0)
+
+                # 3. Tighten the axes boundaries natively
+                ax.set_xlim([-limit, limit])
+                ax.set_ylim([-limit, limit])
+                ax.get_xaxis().set_visible(False)
+                ax.get_yaxis().set_visible(False)
+
+            plt.savefig(name, bbox_inches="tight", pad_inches=0,dpi=600,transparent=True)
+        else:
+            # Prevent labels from overlapping
+            plt.tight_layout()
+            plt.show()
 
 
 def display_sphere(preds, names, radius, return_fig: bool = False):
@@ -565,8 +567,8 @@ def display_sphere(preds, names, radius, return_fig: bool = False):
         )
 
     fig.update_layout(
-        height=400 * max(1, len(preds) // 2),
-        width=400 * min(2, len(preds))
+        height=800 * max(1, len(preds) // 2),
+        width=800 * min(2, len(preds))
     )
 
     fig.update_scenes(

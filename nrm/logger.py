@@ -84,6 +84,9 @@ class Logger:
         return folder
 
     def save_model(self):
+        torch.save(self.model.state_dict(), self.folder / "model.pth")
+
+    def checkpoint(self):
         torch.save(self.model.state_dict(), self.folder / "checkpoint.pth")
 
     def __del__(self):
@@ -124,7 +127,7 @@ class Logger:
         for name, eval_set, fn, params in zip(["Geodesic", "Slice", "Sphere"],
                                       [self.geodesic_set, self.slice_set, self.sphere_set],
                                       [display_geodesic, display_slice, display_sphere],
-                                      [[], [self.slice_set.morphologies[0]], [self.sphere_set[0][1][0, :3].norm()]]):
+                                      [[], [self.slice_set.morphologies[0], None], [self.sphere_set[0][1][0, :3].norm()]]):
             logit, label = self.evaluate_set(eval_set)
             pred = (torch.nn.Sigmoid()(logit) > 0.5)
             metrics[name] = fn([pred, label], ["Prediction", "Truth"], *params, True)
@@ -195,7 +198,7 @@ class Logger:
 
             data |= self.assign_space(self.compute_input_metrics(morph, pose, label), "TrainingsInput")
             data |= self.assign_space(self.compute_input_metrics(v_morph, v_pose, v_label), "ValidationInput")
-
+            self.checkpoint()
         self.step = epoch * len(self.training_set) + batch_idx
         self.run.log(data=data, step=self.step, commit=True)
 

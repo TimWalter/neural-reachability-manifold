@@ -108,7 +108,7 @@ class Dataset:
         return batch
 
     @jaxtyped(typechecker=beartype)
-    def _get_morph(self, morph_id: Int[Tensor, " batch_size"]) -> Float[Tensor, " batch dof 3"]:
+    def _get_morph(self, morph_id: Int[Tensor, "batch_size"]) -> Float[Tensor, " batch dof 3"]:
         """
         Retrieve the morphology for a morphology index.
 
@@ -117,16 +117,9 @@ class Dataset:
         Returns:
             Morphology.
         """
-        # TODO once we switch to various DOFs
         morph = self.morphologies[morph_id]
         dof = (morph[0].abs().sum(dim=1) != 0).sum().item()
         morph = morph[:, :dof, :]
-        # mask = (morph.abs().sum(dim=2) != 0)
-        # dofs = mask.sum(dim=1)
-        # flat = morph[mask]
-        # split_sizes = dofs.tolist()
-        # chunks = list(torch.split(flat, split_sizes))
-        # morph = torch.nested.nested_tensor(chunks, layout=torch.jagged)
         return morph
 
     @jaxtyped(typechecker=beartype)
@@ -189,9 +182,12 @@ class Dataset:
         """
         Get a random batch within the current chunk.
         """
-        batch_idx = self.current_chunk_idx * self.chunk_size // self.batch_size
-        batch_idx += torch.randint(0, self.num_batches // self.num_chunks, (1,)).item()
-        return self[batch_idx]
+        if self.current_chunk_idx is None:
+            return self.get_random_batch()
+        else:
+            batch_idx = self.current_chunk_idx * self.chunk_size // self.batch_size
+            batch_idx += torch.randint(0, self.num_batches // self.num_chunks, (1,)).item()
+            return self[batch_idx]
 
 
 class TrainingSet(Dataset):

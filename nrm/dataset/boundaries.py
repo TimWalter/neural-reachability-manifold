@@ -32,6 +32,8 @@ def morph_and_endpoints(base_set: ValidationSet) \
     unreachable_pose = None
     reachable_pose = None
     for batch_idx, (comp_morph, pose, label) in enumerate(base_set):
+        if comp_morph.shape[1] != morph.shape[1]:
+            continue
         mask = (comp_morph == morph).all(dim=(1, 2))
         pose = pose[mask]
         label = label[mask]
@@ -75,7 +77,7 @@ def generate_geodesic(base_set: ValidationSet, num_samples: int = 1000) \
 @jaxtyped(typechecker=beartype)
 def sample_boundary(base_set: ValidationSet, num_geodesics: int, num_samples: int) \
         -> tuple[
-            Float[Tensor, "{num_geodesics*num_samples} dofp1 3"],
+            list[Float[Tensor, "{num_samples} dofp1 3"]],
             Float[Tensor, "{num_geodesics*num_samples} 4 4"],
             Bool[Tensor, "{num_geodesics*num_samples}"]
         ]:
@@ -98,7 +100,7 @@ def sample_boundary(base_set: ValidationSet, num_geodesics: int, num_samples: in
         morph_list.append(morph)
         pose_list.append(poses)
         label_list.append(labels)
-    return torch.cat(morph_list, dim=0), torch.cat(pose_list, dim=0), torch.cat(label_list, dim=0)
+    return morph_list, torch.cat(pose_list, dim=0), torch.cat(label_list, dim=0)
 
 @jaxtyped(typechecker=beartype)
 def morph_and_reachable(base_set: ValidationSet) \
@@ -120,6 +122,8 @@ def morph_and_reachable(base_set: ValidationSet) \
     morph = morph[:, :dof]
     pose_list = []
     for batch_idx, (comp_morph, pose, label) in enumerate(base_set):
+        if comp_morph.shape[1] != morph.shape[1]:
+            continue
         mask = (comp_morph == morph).all(dim=(1, 2))
         pose = pose[mask]
         label = label[mask]

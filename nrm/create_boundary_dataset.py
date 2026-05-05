@@ -9,7 +9,7 @@ from nrm.dataset.loader import ValidationSet
 from nrm.dataset.boundaries import sample_boundary, generate_geodesic, generate_slice, generate_sphere
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--path", type=str, default="val", help="Base set")
+parser.add_argument("--path", type=str, default="test", help="Base set")
 args = parser.parse_args()
 
 base_set = ValidationSet(1000, False, path=args.path)
@@ -41,7 +41,10 @@ root.create_array(sample_filename,
                   compressors=compressor)
 
 morphs, poses, labels = sample_boundary(base_set, num_geodesics, num_samples)
-root[morph_filename] = morphs[::num_samples].numpy()
+padded_morphs = []
+for m in morphs:
+    padded_morphs += [torch.nn.functional.pad(m[0:1], (0, 0, 0, 8 - m.shape[1]))]
+root[morph_filename] = torch.cat(padded_morphs, dim=0).numpy()
 poses = se3.to_vector(poses)
 labels = labels.float().unsqueeze(1)
 morph_ids = torch.arange(0, num_geodesics).repeat_interleave(num_samples).unsqueeze(1)
@@ -73,7 +76,7 @@ for fn, name, num_samples, exp in zip([generate_geodesic, generate_slice, genera
                       shards=(num_samples ** exp, 11),
                       compressors=compressor)
     morphs, poses, labels = fn(base_set, num_samples)
-    root[morph_filename] = morphs[0:1].numpy()
+    root[morph_filename] = torch.nn.functional.pad(morphs[0:1], (0, 0, 0, 8 - morphs.shape[1])).numpy()
     poses = se3.to_vector(poses)
     labels = labels.float().unsqueeze(1)
     morph_ids = torch.zeros_like(labels)
