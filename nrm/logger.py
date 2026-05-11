@@ -181,6 +181,7 @@ class Logger:
         data = self.assign_space(data, "Training")
 
         if batch_idx % 100000 == 0:
+            self.checkpoint()
             v_morph, v_pose, v_label = self.validation_set.get_semi_random_batch()
             v_morph = v_morph.to(self.device, non_blocking=True)
             v_pose = v_pose.to(self.device, non_blocking=True)
@@ -198,7 +199,7 @@ class Logger:
 
             data |= self.assign_space(self.compute_input_metrics(morph, pose, label), "TrainingsInput")
             data |= self.assign_space(self.compute_input_metrics(v_morph, v_pose, v_label), "ValidationInput")
-            self.checkpoint()
+
         self.step = epoch * len(self.training_set) + batch_idx
         self.run.log(data=data, step=self.step, commit=True)
 
