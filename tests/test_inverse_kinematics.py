@@ -5,6 +5,8 @@ from nrm.dataset.self_collision import collision_check, EPS
 from nrm.dataset.kinematics import pure_analytical_inverse_kinematics, analytical_inverse_kinematics, \
     forward_kinematics, numerical_inverse_kinematics
 from nrm.dataset.morphology import sample_morph, get_joint_limits
+from nrm.dataset.reachability_manifold import sample_poses_in_reach
+from nrm.logger import binary_confusion_matrix
 
 torch.set_printoptions(sci_mode=False, precision=2)
 torch.set_default_dtype(torch.float64)
@@ -121,3 +123,33 @@ def test_numerical_inverse_kinematics():
                     # but it shouldn't fail completely on solvable poses.
                     if recall < 0.1:
                         print(f"Warning: Numerical IK success rate is suspiciously low for Robot {i}")
+
+
+def test_numerical_ik_random():
+    matrices = []
+
+    for dof in [5,6,7]:
+        morphs = sample_morph(10, dof, True if dof!=7 else False, torch.device("cuda"))
+        for morph in morphs:
+            poses = sample_poses_in_reach(1000, morph)
+            _, m = numerical_inverse_kinematics(morph, poses)
+            pred = (m != -1).cpu().float()
+            if dof != 7:
+                try:
+                    _, m = analytical_inverse_kinematics(morph.cpu(), poses.cpu())
+                except RuntimeError:
+                    _, m = numerical_inverse_kinematics(morph.cpu(), poses.cpu(), num_seeds=100)
+                    print("error")
+            else:
+                _, m = numerical_inverse_kinematics(morph.cpu(), poses.cpu(), num_seeds=100)
+            gt = m != -1
+            matrix = binary_confusion_matrix(pred, gt)
+            if matrix.isnan().any():
+                print("nan")
+            else:
+                matrices.append(matrix.unsqueeze(0))
+
+    print(torch.cat(matrices, dim=0).mean(dim=0))
+    print(torch.cat(matrices[:10], dim=0).mean(dim=0))
+    print(torch.cat(matrices[10:20], dim=0).mean(dim=0))
+    print(torch.cat(matrices[20:], dim=0).mean(dim=0))

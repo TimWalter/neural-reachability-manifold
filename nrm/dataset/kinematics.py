@@ -281,7 +281,8 @@ def analytical_inverse_kinematics(mdh: Float[Tensor, "dofp1 3"], poses: Float[Te
 
 
 # @jaxtyped(typechecker=beartype)
-def numerical_inverse_kinematics(inp_mdh: Float[Tensor, "dofp1 3"], inp_poses: Float[Tensor, "batch 4 4"]) \
+def numerical_inverse_kinematics(inp_mdh: Float[Tensor, "dofp1 3"], inp_poses: Float[Tensor, "batch 4 4"],
+                                 num_seeds: int = 10) \
         -> tuple[Float[Tensor, "batch dofp1 1"], Float[Tensor, "batch"]]:
     """
     Fast Levenberg-Marquardt IK solver using Cholesky decomposition.
@@ -294,7 +295,6 @@ def numerical_inverse_kinematics(inp_mdh: Float[Tensor, "dofp1 3"], inp_poses: F
 
         max_iter = 100
         damping = 1e-3
-        num_seeds = 10
 
         device = inp_mdh.device
         dtype = inp_mdh.dtype
