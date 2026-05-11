@@ -55,9 +55,9 @@ def get_batch_size(device: torch.device, workload: Callable, probe_size: int, ar
     usable = int(free_bytes * float(safety))
     batch_size = max(1, usable // max(b_per_sample, 1))
 
-    print(
-        f"[auto-batch] est. bytes/sample: {b_per_sample} "
-        f"({b_per_sample / 1024:.2f} KiB), free: {free_bytes / 1024 ** 3:.2f} GiB, "
-        f"safety: {safety}, batch_size: {batch_size}"
-    )
+    # print(
+    #     f"[auto-batch] est. bytes/sample: {b_per_sample} "
+    #     f"({b_per_sample / 1024:.2f} KiB), free: {free_bytes / 1024 ** 3:.2f} GiB, "
+    #     f"safety: {safety}, batch_size: {batch_size}"
+    # )
     return batch_size
