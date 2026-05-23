@@ -6,8 +6,8 @@ import ram.dataset.se3 as se3
 from ram.dataset.morphology import sample_morph, get_joint_limits
 from ram.dataset.workspace import sample_workspace
 
-from paper_archive.rq3_motion_planning.ours import ours
-from paper_archive.rq3_motion_planning.baseline import baseline
+from paper_archive.rq3_trajectory_optimisation.ours import ours
+from paper_archive.rq3_trajectory_optimisation.baseline import baseline
 
 from paper_archive.utils import bootstrap_mean_ci
 from datetime import datetime
