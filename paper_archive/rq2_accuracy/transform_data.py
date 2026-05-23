@@ -9,18 +9,11 @@ from graphik.robots import RobotRevolute
 from graphik.graphs.graph_revolute import ProblemGraphRevolute
 from paper_archive.rq2_accuracy.generative_graphik.generative_graphik.utils.dataset_generation import generate_struct_data, generate_data_point_from_pose
 
-import nrm.dataset.se3 as se3
-from nrm.dataset.loader import ValidationSet
+import ram.dataset.se3 as se3
+from ram.dataset.loader import ValidationSet
 
 
-for path in [
-             # "test_numerical_geodesic",
-             # "test_numerical_slice",
-             # "test_numerical_sphere",
-             # "test_numerical_boundary",
-             "test_numerical"
-             ]:
-
+for path in ["test_boundary", "test"]:
     eval_set = ValidationSet(1, False, path)
 
     robots = []

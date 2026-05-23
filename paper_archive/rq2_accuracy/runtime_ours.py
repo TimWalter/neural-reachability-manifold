@@ -2,8 +2,8 @@
 import torch
 from tqdm import tqdm
 
-from nrm.model import MLP
-from nrm.dataset.loader import ValidationSet
+from ram.model import Model
+from ram.dataset.loader import ValidationSet
 
 from datetime import datetime
 from datetime import timedelta
@@ -12,9 +12,9 @@ from datetime import timedelta
 device = torch.device("cuda")
 model_id = 13
 
-validation_set = ValidationSet(1000, False, "test_numerical")
+validation_set = ValidationSet(1000, False, "test")
 
-model = MLP.from_id(model_id).to(device)
+model = Model.from_id(model_id).to(device)
 loss_function = torch.nn.BCEWithLogitsLoss(reduction='mean')
 
 model.eval()

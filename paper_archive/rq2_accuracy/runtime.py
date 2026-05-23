@@ -1,10 +1,10 @@
 import torch
 
 
-import nrm.dataset.se3 as se3
+import ram.dataset.se3 as se3
 from tqdm import tqdm
 import pickle
-from nrm.dataset.loader import ValidationSet
+from ram.dataset.loader import ValidationSet
 from pathlib import Path
 from datetime import datetime
 from torch_geometric.data import Batch
@@ -17,7 +17,7 @@ device = torch.device("cuda")
 batch_size = 1000
 num_samples = 32
 
-path = "test_numerical_geodesic"
+path = "test_boundary"
 
 model = Model(network_args())
 model.load_state_dict(torch.load("/home/wtim/generative-graphik/saved_models/NRM/checkpoints/checkpoint.pth")["net"])

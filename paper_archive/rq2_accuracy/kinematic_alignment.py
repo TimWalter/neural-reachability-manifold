@@ -3,12 +3,12 @@ from graphik.robots import RobotRevolute
 from graphik.utils.dgp import graph_from_pos
 from graphik.graphs.graph_revolute import ProblemGraphRevolute
 
-import nrm.dataset.se3 as se3
-from nrm.dataset.morphology import get_joint_limits, sample_morph
-from nrm.dataset.kinematics import forward_kinematics
+import ram.dataset.se3 as se3
+from ram.dataset.morphology import get_joint_limits, sample_morph
+from ram.dataset.kinematics import forward_kinematics
 from liegroups.numpy import SE3
 
-from paper_archive.GGIK.generative_graphik.torch_utils import batchPmultiDOF
+from paper_archive.rq2_accuracy.generative_graphik.generative_graphik.utils.torch_utils import batchPmultiDOF
 
 dof = 6
 device = torch.device("cpu")

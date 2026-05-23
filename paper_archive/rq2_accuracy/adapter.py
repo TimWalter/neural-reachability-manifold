@@ -6,9 +6,9 @@ from liegroups.numpy import SE3
 from graphik.utils.dgp import graph_from_pos
 from paper_archive.rq2_accuracy.generative_graphik.generative_graphik.args.utils import str2bool
 
-import nrm.dataset.se3 as se3
-from nrm.dataset.kinematics import forward_kinematics
-from nrm.dataset.self_collision import collision_check
+import ram.dataset.se3 as se3
+from ram.dataset.kinematics import forward_kinematics
+from ram.dataset.self_collision import collision_check
 
 def network_args():
     parser = argparse.ArgumentParser()

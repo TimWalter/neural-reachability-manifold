@@ -1,14 +1,14 @@
 import pickle
 import torch
-import nrm.dataset.se3 as se3
+import ram.dataset.se3 as se3
 
-from nrm.dataset.morphology import sample_morph
-from nrm.dataset.kinematics import inverse_kinematics, transformation_matrix
-from nrm.dataset.reachability_manifold import sample_poses_in_reach, estimate_reachability_manifold, \
-    estimate_reachable_ball
-from nrm.model import MLP
+from ram.dataset.morphology import sample_morph
+from ram.dataset.kinematics import inverse_kinematics, transformation_matrix
+from ram.dataset.workspace import sample_poses_in_reach, fk_approximation, \
+    ball_approximation
+from ram.model import Model
 
-from nrm.visualisation import display_slice
+from paper_archive.utils import display_slice
 from paper_archive.rq2_accuracy.generative_graphik.generative_graphik.model import Model
 from paper_archive.rq2_accuracy.adapter import network_args, forward_pose
 
@@ -19,7 +19,7 @@ from paper_archive.rq2_accuracy.generative_graphik.generative_graphik.utils.data
     generate_struct_data, generate_data_point_from_pose
 from tqdm import tqdm
 from pathlib import Path
-from nrm.logger import Logger
+from ram.logger import Logger
 
 torch.manual_seed(1)
 
@@ -52,67 +52,67 @@ save_dir.mkdir(parents=True, exist_ok=True)
 
 morph = torch.load(save_dir / "morph.pth")
 pose = torch.load(save_dir / "pose.pth")
-#
+
 label = inverse_kinematics(morph.double().cpu(), pose.double().cpu())[1] != -1
 # display_slice([label.cpu()], [""], morph, "slice_ground-truth.pdf")
 #
-# model = MLP.from_id(13).to("cuda")
-# label_mlp = []
-# for batch_idx in range(0, len(pose), 1000):
-#     current_pose = pose[batch_idx:batch_idx + 1000].to("cuda")
-#     bmorph = morph.to("cuda").unsqueeze(0).expand(current_pose.shape[0], -1, -1)
-#
-#     label_mlp += [model.predict(bmorph, se3.to_vector(current_pose)).cpu()]
-#
-# label_mlp = torch.cat(label_mlp, dim=0)
-# display_slice([torch.nn.Sigmoid()(label_mlp) > 0.5], [""], morph, "slice_nrm.pdf")
-#
-# params = {
-#     "alpha": morph[:, 0].tolist(),
-#     "a": morph[:, 1].tolist(),
-#     "d": morph[:, 2].tolist(),
-#     "theta": [0] * morph.shape[0],
-#     "num_joints": morph.shape[0],
-#     "modified_dh": True,
-# }
-#
-# graph = ProblemGraphRevolute(RobotRevolute(params))
-# struct_data = generate_struct_data(graph)
-#
-# data = []
-# for pose in tqdm(pose):
-#     data += [generate_data_point_from_pose(graph, SE3.from_matrix(pose.cpu().numpy(), normalize=True), struct_data)]
-#
-# pickle.dump(graph, open(save_dir / "graph.pickle", "wb"))
-# pickle.dump(data, open(save_dir / "data.pickle", "wb"))
+model = Model.from_id(142).to("cuda")
+label_mlp = []
+for batch_idx in range(0, len(pose), 1000):
+    current_pose = pose[batch_idx:batch_idx + 1000].to("cuda")
+    bmorph = morph.to("cuda").unsqueeze(0).expand(current_pose.shape[0], -1, -1)
+
+    label_mlp += [model.predict(bmorph, se3.to_vector(current_pose)).cpu()]
+
+label_mlp = torch.cat(label_mlp, dim=0)
+display_slice([torch.nn.Sigmoid()(label_mlp) > 0.5], [""], morph, "slice_ram.pdf")
+
+params = {
+    "alpha": morph[:, 0].tolist(),
+    "a": morph[:, 1].tolist(),
+    "d": morph[:, 2].tolist(),
+    "theta": [0] * morph.shape[0],
+    "num_joints": morph.shape[0],
+    "modified_dh": True,
+}
+
+graph = ProblemGraphRevolute(RobotRevolute(params))
+struct_data = generate_struct_data(graph)
+
+data = []
+for pose in tqdm(pose):
+    data += [generate_data_point_from_pose(graph, SE3.from_matrix(pose.cpu().numpy(), normalize=True), struct_data)]
+
+pickle.dump(graph, open(save_dir / "graph.pickle", "wb"))
+pickle.dump(data, open(save_dir / "data.pickle", "wb"))
 
 graph = pickle.load(open(save_dir / "graph.pickle", "rb"))
 data = pickle.load(open(save_dir / "data.pickle", "rb"))
 
-# device = torch.device("cuda")
-# batch_size = 1000
-# num_samples = 32
-# model = Model(network_args())
-# model.load_state_dict(torch.load("/home/wtim/generative-graphik/saved_models/NRM/checkpoints/checkpoint.pth")["net"])
-# model = model.to(device)
-# se3_dist = []
-# for batch_idx in tqdm(range(0, pose.shape[0], batch_size)):
-#     current_data = data[batch_idx:batch_idx + batch_size]
-#     current_batch_size = len(current_data)
-#     current_morph = morph.unsqueeze(0).expand(current_batch_size, -1, -1)
-#     current_pose = pose[batch_idx:batch_idx + current_batch_size]
-#     predicted_pose = forward_pose(model,
-#                                   current_data,
-#                                   num_samples,
-#                                   current_morph,
-#                                   current_pose,
-#                                   torch.zeros(current_batch_size).int(),
-#                                   [graph])
-#     se3_dist += [se3.distance(predicted_pose[:, -1], current_pose).cpu()]
-#
-# se3_dist = torch.cat(se3_dist, dim=0)
-#
-# torch.save(se3_dist, save_dir / "se3_dist.pth")
+device = torch.device("cuda")
+batch_size = 1000
+num_samples = 32
+model = Model(network_args())
+model.load_state_dict(torch.load("/home/wtim/generative-graphik/saved_models/NRM/checkpoints/checkpoint.pth")["net"])
+model = model.to(device)
+se3_dist = []
+for batch_idx in tqdm(range(0, pose.shape[0], batch_size)):
+    current_data = data[batch_idx:batch_idx + batch_size]
+    current_batch_size = len(current_data)
+    current_morph = morph.unsqueeze(0).expand(current_batch_size, -1, -1)
+    current_pose = pose[batch_idx:batch_idx + current_batch_size]
+    predicted_pose = forward_pose(model,
+                                  current_data,
+                                  num_samples,
+                                  current_morph,
+                                  current_pose,
+                                  torch.zeros(current_batch_size).int(),
+                                  [graph])
+    se3_dist += [se3.distance(predicted_pose[:, -1], current_pose).cpu()]
+
+se3_dist = torch.cat(se3_dist, dim=0)
+
+torch.save(se3_dist, save_dir / "se3_dist.pth")
 
 se3_dist = torch.load(save_dir / "se3_dist.pth")
 

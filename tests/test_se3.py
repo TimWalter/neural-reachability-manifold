@@ -1,15 +1,15 @@
 import torch
 
-import neural_capability_maps.dataset.se3 as se3
+import ram.dataset.se3 as se3
 
 from scipy.spatial.transform import Rotation
 
-from neural_capability_maps.dataset.capability_map import estimate_reachable_ball
-from neural_capability_maps.dataset.kinematics import analytical_inverse_kinematics, forward_kinematics, \
-    transformation_matrix
-from neural_capability_maps.dataset.morphology import sample_morph
+from ram.dataset.workspace import ball_approximation
+from ram.dataset.kinematics import inverse_kinematics, transformation_matrix
+from ram.dataset.morphology import sample_morph
 
 torch.set_default_dtype(torch.float64)
+
 
 def test_distance():
     x1 = torch.eye(4).repeat(3, 1, 1)
@@ -17,24 +17,24 @@ def test_distance():
     x2[:, :3, :3] = torch.stack([
         torch.tensor([[1, 0, 0],
                       [0, -1, 0],
-                     [0, 0, -1]]),
+                      [0, 0, -1]]),
         torch.tensor([[-1, 0, 0],
                       [0, 1, 0],
-                     [0, 0, -1]]),
+                      [0, 0, -1]]),
         torch.tensor([[-1, 0, 0],
                       [0, -1, 0],
-                     [0, 0, 1]])
-    ],dim=0).float()
+                      [0, 0, 1]])
+    ], dim=0).float()
     x2[:, :3, 3] = torch.ones(3, 3)
 
     d = se3.distance(x1, x2)
 
     assert d.shape == (3, 1)
-    assert torch.allclose(d, torch.sqrt(torch.tensor([14]))/4)
+    assert torch.allclose(d, torch.sqrt(torch.tensor([14])) / 4)
 
 
 def test_max_distance_between_cells():
-    cells = se3.cell(torch.arange(10_000)) # Cannot check all (way too many)
+    cells = se3.cell(torch.arange(10_000))  # Cannot check all (way too many)
     # Have to do batches to avoid OOM
     distances = []
     for i in range(0, 10_000, 1000):
@@ -46,7 +46,7 @@ def test_max_distance_between_cells():
         ]
     distances = torch.cat(distances, dim=0).squeeze(-1)
     distances = distances.sort(dim=1).values  # the smallest distance is with themselves
-    assert (distances[:, 1].max()< torch.tensor([se3.MAX_DISTANCE_BETWEEN_CELLS])).all() # < , cause we cant check all
+    assert (distances[:, 1].max() < torch.tensor([se3.MAX_DISTANCE_BETWEEN_CELLS])).all()  # < , cause we cant check all
 
 
 def test_index_cell_consistency():
@@ -87,6 +87,7 @@ def test_nn():
 
     assert (distances.abs() < se3.MAX_DISTANCE_BETWEEN_CELLS).all()
 
+
 def test_vector():
     homogeneous = se3.random(100)
 
@@ -99,16 +100,17 @@ def test_vector():
 def test_random_ball_filtering():
     morphs = sample_morph(10, 6, True)
     for idx, morph in enumerate(morphs):
-        centre, radius = estimate_reachable_ball(morph)
+        centre, radius = ball_approximation(morph)
         poses = se3.random_ball(100_000, centre, radius)
 
-        joints, manipulability = analytical_inverse_kinematics(morph.double(), poses.double())
+        joints, manipulability = inverse_kinematics(morph.double(), poses.double())
         labels = manipulability.cpu() != -1
 
-        mat = transformation_matrix(morph[-1, 0:1], morph[-1, 1:2],morph[-1, 2:3],torch.zeros_like(morph[-1, 0:1]))
-        pred = ((poses @ torch.linalg.inv(mat))[:, :3, 3] - centre).norm(dim=-1) > estimate_reachable_ball(morph[:-1])[1]
+        mat = transformation_matrix(morph[-1, 0:1], morph[-1, 1:2], morph[-1, 2:3], torch.zeros_like(morph[-1, 0:1]))
+        pred = ((poses @ torch.linalg.inv(mat))[:, :3, 3] - centre).norm(dim=-1) > ball_approximation(morph[:-1])[1]
 
         assert not labels[pred].any(), f"Number of wrongly pruned {labels[pred].sum()}. For {idx}"
+
 
 def test_cell_noisy():
     positions = se3.random(10000)

@@ -4,13 +4,13 @@ import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 
-import nrm.dataset.se3 as se3
+import ram.dataset.se3 as se3
 
-from nrm.dataset.morphology import sample_morph
-from nrm.dataset.kinematics import numerical_inverse_kinematics, forward_kinematics
-from nrm.dataset.self_collision import collision_check
-from nrm.dataset.self_collision import LINK_RADIUS, EPS
-from nrm.model import MLP
+from ram.dataset.morphology import sample_morph
+from ram.dataset.kinematics import numerical_inverse_kinematics, forward_kinematics
+from ram.dataset.self_collision import collision_check
+from ram.dataset.self_collision import LINK_RADIUS, EPS
+from ram.model import Model
 
 class Normaliser(torch.autograd.Function):
     @staticmethod
@@ -87,7 +87,7 @@ tau = 1.0
 tau_min = 0.05
 decay_rate = 0.95
 alpha_choices = torch.tensor([0.0, torch.pi / 2, -torch.pi / 2], device=device).unsqueeze(0)
-model = MLP.from_id(13).to(device)
+model = Model.from_id(142).to(device)
 for i in tqdm(range(100)):
     optimizer.zero_grad()
 

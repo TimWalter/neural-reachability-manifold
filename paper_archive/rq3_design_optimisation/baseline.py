@@ -9,9 +9,9 @@ import jax.numpy as jnp
 import optax
 import jax.dlpack
 
-import paper_archive.nrm_jax.se3 as jax_se3
-import paper_archive.nrm_jax.kinematics as jax_kinematics
-from paper_archive.nrm_jax.self_collision import collision_check, EPS, LINK_RADIUS
+import paper_archive.ram_jax.se3 as jax_se3
+import paper_archive.ram_jax.kinematics as jax_kinematics
+from paper_archive.ram_jax.self_collision import collision_check, EPS, LINK_RADIUS
 
 @jax.custom_vjp
 def squasher(param):
@@ -146,10 +146,12 @@ if __name__ == "__main__":
     from pathlib import Path
     from plotly.subplots import make_subplots
 
-    from nrm.visualisation import visualise_workspace
+    from paper_archive.utils import visualise_workspace
     from paper_archive.utils import bootstrap_mean_ci
-    from nrm.dataset.morphology import sample_morph
-    import nrm.dataset.se3 as se3
+    from ram.dataset.morphology import sample_morph
+    import ram.dataset.se3 as se3
+
+    torch.manual_seed(0)
 
     save_dir = Path(__file__).parent / "data" / "base"
     save_dir.mkdir(parents=True, exist_ok=True)

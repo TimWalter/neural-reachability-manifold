@@ -1,16 +1,13 @@
 import torch
-from torch._C._jit_tree_views import Break
 
 from tqdm import tqdm
 from torch import Tensor
 from jaxtyping import Float, Int, Bool
 
-import nrm.dataset.se3 as se3
-
-from nrm.dataset.kinematics import numerical_inverse_kinematics, forward_kinematics
-from nrm.dataset.self_collision import collision_check
-from nrm.dataset.self_collision import LINK_RADIUS, EPS
-from nrm.model import MLP
+from ram.dataset.kinematics import numerical_inverse_kinematics, forward_kinematics
+from ram.dataset.self_collision import collision_check
+from ram.dataset.self_collision import LINK_RADIUS, EPS
+from ram.model import Model
 
 
 class SquasherSTE(torch.autograd.Function):
@@ -80,7 +77,7 @@ def ours(initial_morph: Float[Tensor, "dofp1 3"], task: Float[Tensor, "num_sampl
     morphs = []
 
     optimizer = torch.optim.AdamW([lengths], lr=0.01)
-    model = MLP.from_id(13).to(initial_morph.device)
+    model = Model.from_id(142).to(initial_morph.device)
     for _ in tqdm(range(n_iter)):
         optimizer.zero_grad()
 
@@ -128,10 +125,11 @@ if __name__ == "__main__":
     from pathlib import Path
     from plotly.subplots import make_subplots
 
-    from nrm.visualisation import visualise_workspace
-    from paper_archive.utils import bootstrap_mean_ci
-    from nrm.dataset.morphology import sample_morph
-    import nrm.dataset.se3 as se3
+    from paper_archive.utils import bootstrap_mean_ci, visualise_workspace
+    from ram.dataset.morphology import sample_morph
+    import ram.dataset.se3 as se3
+
+    torch.manual_seed(0)
 
     save_dir = Path(__file__).parent / "data" / "ours"
     save_dir.mkdir(parents=True, exist_ok=True)
@@ -173,12 +171,12 @@ if __name__ == "__main__":
             pickle.dump(task, open(save_dir / "task.pkl", "wb"))
             pickle.dump(last_reachability, open(save_dir / "last_reachability.pkl", "wb"))
 
-    loss = bootstrap_mean_ci(torch.stack(loss_list).numpy())
-    pose_loss = bootstrap_mean_ci(torch.stack(pose_loss_list).numpy())
-    self_collision_loss = bootstrap_mean_ci(torch.stack(self_collision_loss_list).numpy())
-    reachability = bootstrap_mean_ci(torch.stack(reachability_list).numpy())
-    pose_error = bootstrap_mean_ci(torch.stack(pose_error_list).numpy())
-    self_collision = bootstrap_mean_ci(torch.stack(self_collision_list).numpy())
+    loss = bootstrap_mean_ci(torch.stack(loss_list))
+    pose_loss = bootstrap_mean_ci(torch.stack(pose_loss_list))
+    self_collision_loss = bootstrap_mean_ci(torch.stack(self_collision_loss_list))
+    reachability = bootstrap_mean_ci(torch.stack(reachability_list))
+    pose_error = bootstrap_mean_ci(torch.stack(pose_error_list))
+    self_collision = bootstrap_mean_ci(torch.stack(self_collision_list))
 
     pickle.dump(loss, open(save_dir / "loss.pkl", "wb"))
     pickle.dump(pose_loss, open(save_dir / "pose_loss.pkl", "wb"))

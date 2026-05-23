@@ -1,12 +1,12 @@
 import torch
 
-import nrm.dataset.se3 as se3
-from nrm.dataset.self_collision import collision_check, EPS
-from nrm.dataset.kinematics import pure_analytical_inverse_kinematics, analytical_inverse_kinematics, \
+import ram.dataset.se3 as se3
+from ram.dataset.self_collision import collision_check, EPS
+from ram.dataset.kinematics import pure_analytical_inverse_kinematics, analytical_inverse_kinematics, \
     forward_kinematics, numerical_inverse_kinematics
-from nrm.dataset.morphology import sample_morph, get_joint_limits
-from nrm.dataset.reachability_manifold import sample_poses_in_reach
-from nrm.logger import binary_confusion_matrix
+from ram.dataset.morphology import sample_morph, get_joint_limits
+from ram.dataset.workspace import sample_poses_in_reach
+from ram.logger import binary_confusion_matrix
 
 torch.set_printoptions(sci_mode=False, precision=2)
 torch.set_default_dtype(torch.float64)

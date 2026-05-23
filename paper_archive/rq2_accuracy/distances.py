@@ -1,10 +1,10 @@
 import torch
 
 
-import nrm.dataset.se3 as se3
+import ram.dataset.se3 as se3
 from tqdm import tqdm
 import pickle
-from nrm.dataset.loader import ValidationSet
+from ram.dataset.loader import ValidationSet
 from pathlib import Path
 
 from paper_archive.rq2_accuracy.generative_graphik.generative_graphik.model import Model
@@ -15,13 +15,7 @@ device = torch.device("cuda")
 batch_size = 1000
 num_samples = 32
 
-for path in [
-    # "test_numerical_geodesic",
-    # "test_numerical_slice",
-    # "test_numerical_sphere",
-    # "test_numerical_boundary",
-    "test_numerical"
-]:
+for path in ["test_boundary", "test"]:
 
     model = Model(network_args())
     model.load_state_dict(torch.load("/home/wtim/generative-graphik/saved_models/NRM/checkpoints/checkpoint.pth")["net"])
@@ -34,7 +28,7 @@ for path in [
     se3_dist = []
     labels = []
     for batch_idx, (morph, pose, label) in enumerate(tqdm(eval_set, desc=f"Validation")):
-        if path == "test_numerical" and batch_idx == 1000:
+        if path == "test" and batch_idx == 3000:
             break
         morph = morph.to(device, non_blocking=True)
         pose = se3.from_vector(pose.to(device, non_blocking=True))

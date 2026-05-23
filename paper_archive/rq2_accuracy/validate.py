@@ -1,8 +1,8 @@
 import torch
 from pathlib import Path
-from nrm.logger import Logger
+from ram.logger import Logger
 
-path = "test_numerical_boundary"
+path = "test"
 
 se3_dist = torch.load(Path.cwd() / "data" / path / "se3_dist.pth")
 labels = torch.load(Path.cwd() / "data" / path / "labels.pth")

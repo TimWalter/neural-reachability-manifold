@@ -1,8 +1,8 @@
 import torch
 
-import neural_capability_maps.dataset.r3 as r3
-from neural_capability_maps.dataset.capability_map import estimate_reachable_ball
-from neural_capability_maps.dataset.morphology import sample_morph
+import ram.dataset.r3 as r3
+from ram.dataset.workspace import ball_approximation
+from ram.dataset.morphology import sample_morph
 
 
 def test_distance():
@@ -88,10 +88,11 @@ def test_nn():
 
 def test_random_ball():
     morph = sample_morph(1, 6, True, torch.device("cpu"))[0]
-    centre, radius = estimate_reachable_ball(morph)
+    centre, radius = ball_approximation(morph)
     positions = r3.random_ball(100_000, centre, radius)
 
     assert r3.distance(positions, centre.unsqueeze(0).expand(positions.shape[0], 3)).max() <= radius
+
 
 def test_cell_noisy():
     positions = r3.random(10000)

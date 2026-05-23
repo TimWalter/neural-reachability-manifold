@@ -1,10 +1,10 @@
 import torch
 import pickle
 from pathlib import Path
-import nrm.dataset.se3 as se3
+import ram.dataset.se3 as se3
 
-from nrm.dataset.morphology import sample_morph, get_joint_limits
-from nrm.dataset.reachability_manifold import sample_reachable_poses
+from ram.dataset.morphology import sample_morph, get_joint_limits
+from ram.dataset.workspace import sample_workspace
 
 from paper_archive.rq3_motion_planning.ours import ours
 from paper_archive.rq3_motion_planning.baseline import baseline
@@ -27,8 +27,8 @@ for size in sizes:
         torch.manual_seed(seed)
         morph = sample_morph(1, 6, False, device)[0]
         joint_limits = get_joint_limits(morph)
-        reachable_poses = sample_reachable_poses(morph.unsqueeze(0).expand(10000, -1, -1),
-                                                 joint_limits.unsqueeze(0).expand(10000, -1, -1))[0]
+        reachable_poses = sample_workspace(morph.unsqueeze(0).expand(10000, -1, -1),
+                                           joint_limits.unsqueeze(0).expand(10000, -1, -1))[0]
         start = reachable_poses[0]
         end = reachable_poses[1]
 
@@ -49,8 +49,8 @@ for size in sizes:
 base_runtime = torch.stack(base_runtime, dim=1)
 ours_runtime = torch.stack(ours_runtime, dim=1)
 
-mean_base_runtime, lower_base_runtime, upper_base_runtime = bootstrap_mean_ci(base_runtime.numpy())
-mean_ours_runtime, lower_ours_runtime, upper_ours_runtime = bootstrap_mean_ci(ours_runtime.numpy())
+mean_base_runtime, lower_base_runtime, upper_base_runtime = bootstrap_mean_ci(base_runtime)
+mean_ours_runtime, lower_ours_runtime, upper_ours_runtime = bootstrap_mean_ci(ours_runtime)
 
 pickle.dump([mean_base_runtime, lower_base_runtime, upper_base_runtime], open(save_dir / "base_runtime.pkl", "wb"))
 pickle.dump([mean_ours_runtime, lower_ours_runtime, upper_ours_runtime], open(save_dir / "ours_runtime.pkl", "wb"))

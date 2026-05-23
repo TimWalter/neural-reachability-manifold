@@ -4,10 +4,10 @@ from tqdm import tqdm
 from torch import Tensor
 from jaxtyping import Float, Int, Bool
 
-import nrm.dataset.se3 as se3
-from nrm.dataset.kinematics import numerical_inverse_kinematics, forward_kinematics
-from nrm.dataset.self_collision import collision_check, EPS
-from nrm.model import MLP
+import ram.dataset.se3 as se3
+from ram.dataset.kinematics import numerical_inverse_kinematics, forward_kinematics
+from ram.dataset.self_collision import collision_check, EPS
+from ram.model import Model
 
 
 def from_index(rot_vec: Float[Tensor, "batch 3"]) -> Float[Tensor, "batch 3 3"]:
@@ -73,7 +73,7 @@ def ours(morph: Float[Tensor, "dofp1 3"], target_trajectory: Float[Tensor, "num_
     pose_error_list = []
     self_collision_list = []
 
-    model = MLP.from_id(13).to(morph.device)
+    model = Model.from_id(142).to(morph.device)
 
     prediction_loss_c = 10.0
     deviation_loss_c = 0.5
@@ -128,10 +128,11 @@ if __name__ == "__main__":
 
     from plotly.subplots import make_subplots
 
-    from nrm.visualisation import visualise_trajectories
-    from paper_archive.utils import bootstrap_mean_ci
-    from nrm.dataset.morphology import sample_morph, get_joint_limits
-    from nrm.dataset.reachability_manifold import sample_reachable_poses
+    from paper_archive.utils import bootstrap_mean_ci, visualise_trajectories
+    from ram.dataset.morphology import sample_morph, get_joint_limits
+    from ram.dataset.workspace import sample_workspace
+
+    torch.manual_seed(0)
 
     save_dir = Path(__file__).parent / "data" / "ours"
     save_dir.mkdir(parents=True, exist_ok=True)
@@ -152,8 +153,8 @@ if __name__ == "__main__":
         torch.manual_seed(s)
         morph = sample_morph(1, 6, False, device)[0]
         joint_limits = get_joint_limits(morph)
-        reachable_poses = sample_reachable_poses(morph.unsqueeze(0).expand(10000, -1, -1),
-                                                 joint_limits.unsqueeze(0).expand(10000, -1, -1))[0]
+        reachable_poses = sample_workspace(morph.unsqueeze(0).expand(10000, -1, -1),
+                                           joint_limits.unsqueeze(0).expand(10000, -1, -1))[0]
         start = reachable_poses[0]
         end = reachable_poses[1]
 
@@ -177,12 +178,12 @@ if __name__ == "__main__":
             pickle.dump(trajectory, open(save_dir / "trajectory.pkl", "wb"))
             pickle.dump(last_reachability, open(save_dir / "last_reachability.pkl", "wb"))
 
-    loss = bootstrap_mean_ci(torch.stack(loss_list).numpy())
-    prediction_loss = bootstrap_mean_ci(torch.stack(prediction_loss_list).numpy())
-    deviation_loss = bootstrap_mean_ci(torch.stack(deviation_loss_list).numpy())
-    reachability = bootstrap_mean_ci(torch.stack(reachability_list).numpy())
-    pose_error = bootstrap_mean_ci(torch.stack(pose_error_list).numpy())
-    self_collision = bootstrap_mean_ci(torch.stack(self_collision_list).numpy())
+    loss = bootstrap_mean_ci(torch.stack(loss_list))
+    prediction_loss = bootstrap_mean_ci(torch.stack(prediction_loss_list))
+    deviation_loss = bootstrap_mean_ci(torch.stack(deviation_loss_list))
+    reachability = bootstrap_mean_ci(torch.stack(reachability_list))
+    pose_error = bootstrap_mean_ci(torch.stack(pose_error_list))
+    self_collision = bootstrap_mean_ci(torch.stack(self_collision_list))
 
     pickle.dump(loss, open(save_dir / "loss.pkl", "wb"))
     pickle.dump(prediction_loss, open(save_dir / "prediction_loss.pkl", "wb"))

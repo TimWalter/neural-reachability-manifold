@@ -1,6 +1,6 @@
 import torch
 
-import neural_capability_maps.dataset.so3 as so3
+import ram.dataset.so3 as so3
 
 from scipy.spatial.transform import Rotation
 
@@ -10,35 +10,42 @@ def test_distance():
     x2 = torch.stack([
         torch.tensor([[1, 0, 0],
                       [0, -1, 0],
-                     [0, 0, -1]]),
+                      [0, 0, -1]]),
         torch.tensor([[-1, 0, 0],
                       [0, 1, 0],
-                     [0, 0, -1]]),
+                      [0, 0, -1]]),
         torch.tensor([[-1, 0, 0],
                       [0, -1, 0],
-                     [0, 0, 1]])
-    ],dim=0).float()
+                      [0, 0, 1]])
+    ], dim=0).float()
 
     d = so3.distance(x1, x2)
 
     assert d.shape == (3, 1)
     assert torch.allclose(d, torch.tensor([torch.pi]))
 
+
 def test_max_distance_between_cells():
-    cell_indices = torch.arange(so3.N_CELLS)
-    cells = so3.cell(cell_indices)
-    nn = so3.cell(so3.nn(cell_indices))
-    distances = so3.distance(cells.unsqueeze(1).expand(cells.shape[0], nn.shape[1], 3, 3), nn)
-    max_distance = distances.max()
-    assert torch.allclose(max_distance, torch.tensor([so3.MAX_DISTANCE_BETWEEN_CELLS]))
+    for l in range(4):
+        so3.set_level(l + 1)
+        cell_indices = torch.arange(so3.N_CELLS)
+        cells = so3.cell(cell_indices)
+        nn = so3.cell(so3.nn(cell_indices))
+        distances = so3.distance(cells.unsqueeze(1).expand(cells.shape[0], nn.shape[1], 3, 3), nn)
+        max_distance = distances.max()
+        assert torch.allclose(torch.round(max_distance, decimals=4), torch.tensor([so3.MAX_DISTANCE_BETWEEN_CELLS]))
+
 
 def test_min_distance_between_cells():
-    cell_indices = torch.arange(so3.N_CELLS)
-    cells = so3.cell(cell_indices)
-    nn = so3.cell(so3.nn(cell_indices))
-    distances = so3.distance(cells.unsqueeze(1).expand(cells.shape[0], nn.shape[1], 3, 3), nn)
-    min_distance = distances.min()
-    assert torch.allclose(min_distance, torch.tensor([so3.MIN_DISTANCE_BETWEEN_CELLS]))
+    for l in range(4):
+        so3.set_level(l + 1)
+        cell_indices = torch.arange(so3.N_CELLS)
+        cells = so3.cell(cell_indices)
+        nn = so3.cell(so3.nn(cell_indices))
+        distances = so3.distance(cells.unsqueeze(1).expand(cells.shape[0], nn.shape[1], 3, 3), nn)
+        min_distance = distances.min()
+        assert torch.allclose(torch.round(min_distance, decimals=4), torch.tensor([so3.MIN_DISTANCE_BETWEEN_CELLS]))
+
 
 def test_index_cell_consistency():
     test_indices = torch.tensor([0, 1, 2, 3, 4])
@@ -48,6 +55,7 @@ def test_index_cell_consistency():
 
     assert torch.equal(test_indices, retrieved_indices)
 
+
 def test_lookup():
     quaternions = torch.randn(100_000, 4)
     quaternions = quaternions / torch.norm(quaternions, dim=1, keepdim=True)
@@ -56,6 +64,7 @@ def test_lookup():
     max_rot_distances = so3.distance(so3.cell(so3.index(rotation)), rotation).max()
 
     assert max_rot_distances < so3.MAX_DISTANCE_BETWEEN_CELLS
+
 
 def test_nn():
     test_index = torch.tensor([10])
@@ -68,6 +77,7 @@ def test_nn():
 
     assert torch.all(distances.abs() <= torch.tensor([so3.MAX_DISTANCE_BETWEEN_CELLS]))
 
+
 def test_vector():
     rot_mat = so3.random(100)
 
@@ -75,6 +85,7 @@ def test_vector():
     rot_mat_reconstructed = so3.from_vector(cont)
 
     assert torch.allclose(rot_mat, rot_mat_reconstructed)
+
 
 def test_cell_noisy():
     positions = so3.random(10000)
