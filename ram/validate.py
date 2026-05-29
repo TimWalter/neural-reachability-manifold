@@ -40,7 +40,7 @@ def main(model_id: int, batch_size: int):
         logit = model.predict(morph, pose)
         loss += loss_function(logit, label.float())
 
-        logger.log_validation(batch_idx, label, logit, loss)
+        logger.log_validation(batch_idx, label, logit, loss, False)
     loss /= len(validation_set) * batch_size
     logger.run.log(data={}, step=logger.step+1, commit=True)
 
@@ -48,7 +48,7 @@ if __name__ == '__main__':
     torch.manual_seed(0)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_id", type=int, default=141)
+    parser.add_argument("--model_id", type=int, default=49)
     parser.add_argument("--batch_size", type=int, default=1000)
     args = parser.parse_args()
 

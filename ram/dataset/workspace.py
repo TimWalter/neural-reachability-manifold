@@ -1,7 +1,3 @@
-import os
-# Necessary for torch.compile of "sample_workspace" for debug remove torch.compile and this flag
-os.environ["JAXTYPING_DISABLE"] = "1"
-
 import warnings
 
 warnings.filterwarnings("ignore", message=".*Dynamo detected a call to a `functools.lru_cache`.*")
@@ -11,7 +7,7 @@ from datetime import datetime, timedelta
 import torch
 from torch import Tensor
 from beartype import beartype
-from jaxtyping import Float, jaxtyped, Bool, Int64
+from jaxtyping import Float, jaxtyped, Bool, Int64, config
 from tabulate import tabulate
 
 import ram.dataset.r3 as r3
@@ -42,10 +38,12 @@ def sample_workspace(morph: Float[Tensor, "*batch dof 3"], joint_limits: Float[T
     """
     joints = torch.rand(*joint_limits.shape[:-1], 1, device=morph.device) * joint_limits[..., 0:1] + joint_limits[
         ..., 1:2]
+    config.update("jaxtyping_disable", True)
     poses = forward_kinematics(morph, joints)
     self_collision = collision_check(morph, poses)
     poses = poses[..., -1, :, :][~self_collision]
     cell_indices = se3.index(poses)
+    config.update("jaxtyping_disable", False)
     return poses, cell_indices
 
 

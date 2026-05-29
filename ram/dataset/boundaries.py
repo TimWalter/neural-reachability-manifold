@@ -5,213 +5,81 @@ from jaxtyping import Float, Bool, jaxtyped
 from beartype import beartype
 
 import ram.dataset.se3 as se3
-from ram.dataset.loader import ValidationSet
-from ram.dataset.kinematics import inverse_kinematics, transformation_matrix
-from ram.dataset.workspace import ball_approximation
+from ram.dataset.morphology import get_joint_limits
+from ram.dataset.kinematics import inverse_kinematics
+from ram.dataset.workspace import sample_workspace, sample_poses_in_reach
 
 
 @jaxtyped(typechecker=beartype)
-def morph_and_endpoints(base_set: ValidationSet) \
+def get_boundary_pairs(morph: Float[Tensor, "dofp1 3"], num_pairs: int, oversampling: int = 10) \
         -> tuple[
-            Float[Tensor, "1 dofp1 3"],
-            Float[Tensor, "1 4 4"],
-            Float[Tensor, "1 4 4"]
+            Float[Tensor, "num_pairs 4 4"],
+            Float[Tensor, "num_pairs 4 4"]
         ]:
     """
-    Extract one morphology, one reachable, and  one unreachable pose from the base_set.
+    Generate pairs of reachable and unreachable poses given a morphology.
 
     Args:
-        base_set: Dataset to extract from.
+        morph: MDH parameters encoding the robot geometry.
+        num_pairs: Number of pairs to generate.
+        oversampling: Factor to oversample with.
 
     Returns:
-        Morphology, unreachable pose, reachable pose.
+        Reachable poses and unreachable poses.
     """
-    morph = base_set.morphologies[torch.randint(0, len(base_set.morphologies), (1,)).item()].unsqueeze(0)
-    dof = (morph[0].abs().sum(dim=1) != 0).sum().item()
-    morph = morph[:, :dof]
-    unreachable_pose = None
-    reachable_pose = None
-    for batch_idx, (comp_morph, pose, label) in enumerate(base_set):
-        if comp_morph.shape[1] != morph.shape[1]:
-            continue
-        mask = (comp_morph == morph).all(dim=(1, 2))
-        pose = pose[mask]
-        label = label[mask]
 
-        if (~label).any() and unreachable_pose is None:
-            unreachable_pose = pose[~label][0:1]
-        if label.any() and reachable_pose is None:
-            reachable_pose = pose[label][0:1]
-        if reachable_pose is not None and unreachable_pose is not None:
-            break
+    joint_limits = get_joint_limits(morph)
 
-    if reachable_pose is None or unreachable_pose is None:
-        return morph_and_endpoints(base_set)
+    reachable_pose = sample_workspace(morph.unsqueeze(0).expand(oversampling * num_pairs, -1, -1),
+                                      joint_limits.unsqueeze(0).expand(oversampling * num_pairs, -1, -1))[0][:num_pairs]
+    i = 0
+    while reachable_pose.shape[0] != num_pairs:
+        new = sample_workspace(morph.unsqueeze(0).expand(oversampling * (num_pairs - reachable_pose.shape[0]), -1, -1),
+                               joint_limits.unsqueeze(0).expand(oversampling * (num_pairs - reachable_pose.shape[0]),
+                                                                -1, -1)
+                               )[0][:num_pairs - reachable_pose.shape[0]]
+        reachable_pose = torch.cat([reachable_pose, new])
+        i +=1
+        if i == 10:
+            raise RuntimeError("Failed to sample reachable poses.")
 
-    return morph, se3.from_vector(unreachable_pose), se3.from_vector(reachable_pose)
+    unreachable_pose = sample_poses_in_reach(oversampling * num_pairs, morph)
+    unreachable_pose = unreachable_pose[inverse_kinematics(morph, unreachable_pose)[-1] == -1][:num_pairs]
+    i = 0
+    while unreachable_pose.shape[0] != num_pairs:
+        new = sample_poses_in_reach(oversampling * (num_pairs - unreachable_pose.shape[0]), morph)
+        new = new[inverse_kinematics(morph, new)[-1] == -1][:(num_pairs - unreachable_pose.shape[0])]
+        unreachable_pose = torch.cat([unreachable_pose, new])
+        i +=1
+        if i == 10:
+            raise RuntimeError("Failed to sample unreachable poses.")
+
+    return reachable_pose, unreachable_pose
+
 
 @jaxtyped(typechecker=beartype)
-def generate_geodesic(base_set: ValidationSet, num_samples: int = 1000) \
+def sample_boundary(morph: Float[Tensor, "dofp1 3"], num_geodesics: int, num_samples: int) \
         -> tuple[
-            Float[Tensor, "num_samples dofp1 3"],
-            Float[Tensor, "num_samples 4 4"],
-            Bool[Tensor, "num_samples"]
-        ]:
-    """
-    Given a base set, pick a morphology and compute a reachable and unreachable pose in their workspace.
-    Sample the geodesic between these poses.
-
-    Args:
-         base_set: Dataset to extract from.
-         num_samples: Number of samples to generate.
-
-    Returns:
-        Morphology, poses, labels
-    """
-    morph, start, end = morph_and_endpoints(base_set)
-
-    tangent = se3.log(start, end)
-    t = torch.linspace(0, 1, num_samples).view(-1, 1)
-    poses = se3.exp(start.repeat(num_samples, 1, 1), t * tangent)
-    labels = inverse_kinematics(morph[0].double(), poses.double())[1] != -1
-
-    return morph.expand(num_samples, -1, -1).clone(), poses, labels
-
-@jaxtyped(typechecker=beartype)
-def sample_boundary(base_set: ValidationSet, num_geodesics: int, num_samples: int) \
-        -> tuple[
-            list[Float[Tensor, "{num_samples} dofp1 3"]],
             Float[Tensor, "{num_geodesics*num_samples} 4 4"],
             Bool[Tensor, "{num_geodesics*num_samples}"]
         ]:
     """
-    Given a base set, compute boundary points by following geodesics across the boundary.
+    Given a morphology, compute boundary points by following geodesics across the boundary.
 
     Args:
-        base_set: Base set providing morphologies and geodesic endpoints.
+        morph: MDH parameters encoding the robot geometry.
         num_geodesics: Number of geodesics to sample.
         num_samples: Number of samples per geodesic.
 
     Returns:
-        Morphologies, poses, labels
+        Poses, labels
     """
-    morph_list = []
-    pose_list = []
-    label_list = []
-    for i in range(num_geodesics):
-        morph, poses, labels = generate_geodesic(base_set, num_samples)
-        morph_list.append(morph)
-        pose_list.append(poses)
-        label_list.append(labels)
-    return morph_list, torch.cat(pose_list, dim=0), torch.cat(label_list, dim=0)
+    reachable_pose, unreachable_pose = get_boundary_pairs(morph, num_geodesics)
 
-@jaxtyped(typechecker=beartype)
-def morph_and_reachable(base_set: ValidationSet) \
-        -> tuple[
-            Float[Tensor, "1 dofp1 3"],
-            Float[Tensor, "batch 4 4"]
-        ]:
-    """
-    Extract one morphology and all its reachable poses.
+    tangent = se3.log(reachable_pose, unreachable_pose).unsqueeze(0)
+    t = torch.linspace(0, 1, num_samples).view(-1, 1, 1).to(tangent.device)
 
-    Args:
-        base_set: Dataset to extract from.
+    poses = se3.exp(reachable_pose.repeat(num_samples, 1, 1, 1), t * tangent).view(-1, 4, 4)
+    labels = inverse_kinematics(morph, poses)[1] != -1
 
-    Returns:
-        Morphology and poses.
-    """
-    morph = base_set.morphologies[torch.randint(0, len(base_set.morphologies), (1,)).item()].unsqueeze(0)
-    dof = (morph[0].abs().sum(dim=1) != 0).sum().item()
-    morph = morph[:, :dof]
-    pose_list = []
-    for batch_idx, (comp_morph, pose, label) in enumerate(base_set):
-        if comp_morph.shape[1] != morph.shape[1]:
-            continue
-        mask = (comp_morph == morph).all(dim=(1, 2))
-        pose = pose[mask]
-        label = label[mask]
-
-        pose_list += [pose[label]]
-    poses = torch.cat(pose_list, dim=0)
-    return morph, se3.from_vector(poses)
-
-@jaxtyped(typechecker=beartype)
-def generate_slice(base_set: ValidationSet, num_samples: int = 100) \
-        -> tuple[
-            Float[Tensor, "{num_samples*num_samples} dofp1 3"],
-            Float[Tensor, "{num_samples*num_samples} 4 4"],
-            Bool[Tensor, "{num_samples*num_samples}"]]:
-    """
-    Generate a 2D-slice through the workspace of a random morphology in the base set.
-    The centre pose of the slice is picked as the pose with the median position. We fix the orientation and
-    pick the slice normal to be the primary axes of rotation.
-
-    Args:
-        base_set: Dataset to extract from.
-        num_samples: Number of samples in one direction.
-
-    Returns:
-        Morphology, poses, labels.
-    """
-    morph, poses = morph_and_reachable(base_set)
-    centre, radius = ball_approximation(morph[0])
-
-    mat = transformation_matrix(morph[:, 0, 0:1],
-                                morph[:, 0, 1:2],
-                                morph[:, 0, 2:3],
-                                torch.zeros_like(morph[:, 0, 0:1]))
-    torus_axis = torch.nn.functional.normalize(mat[0, :3, 2], dim=0)
-    fixed_axes = torch.argmax(torus_axis.abs())
-    axes_mask = torch.ones(3, dtype=torch.bool)
-    axes_mask[fixed_axes] = False
-    axes_range = torch.linspace(-radius, radius, num_samples)
-
-    anchor = poses[torch.median(poses[:, :3, 3].norm(dim=1), dim=0).indices]
-    poses = anchor.unsqueeze(0).expand(num_samples ** 2, -1, -1).clone()
-    poses[:, :3, 3][:, axes_mask] = centre[axes_mask]
-
-    poses[:, :3, 3][:, axes_mask] += torch.stack(torch.meshgrid(axes_range, axes_range, indexing='ij'),
-                                                 dim=-1).reshape(-1, 2)
-    labels = inverse_kinematics(morph[0].double(), poses.double())[1] != -1
-
-    return morph.expand(num_samples ** 2, -1, -1).clone(), poses, labels
-
-@jaxtyped(typechecker=beartype)
-def generate_sphere(base_set: ValidationSet, num_samples: int = 100) \
-        -> tuple[
-            Float[Tensor, "{num_samples*num_samples} dofp1 3"],
-            Float[Tensor, "{num_samples*num_samples} 4 4"],
-            Bool[Tensor, "{num_samples*num_samples}"],
-        ]:
-    """
-    Generate a sphere (S^2) through the workspace of a random morphology in the base set.
-    The centre of the sphere is the end of the base link. The radius is picked as the median radius of reachable poses,
-    and the orientation is the orientation of the pose whose radius has been picked.
-
-    Args:
-      base_set: Dataset to extract from.
-      num_samples: Number of samples in one direction.
-
-    Returns:
-          Morphology, poses, labels.
-    """
-    morph, poses = morph_and_reachable(base_set)
-
-    centre, radius = ball_approximation(morph[0])
-
-    anchor = poses[torch.median(poses[:, :3, 3].norm(dim=1), dim=0).indices]
-    poses = anchor.unsqueeze(0).expand(num_samples ** 2, -1, -1).clone()
-    poses[:, :3, 3] = centre
-
-    theta = torch.linspace(0, torch.pi, num_samples)
-    phi = torch.linspace(0, 2 * torch.pi, num_samples)
-    theta_grid, phi_grid = torch.meshgrid(theta, phi, indexing='ij')
-
-    x = anchor[:3, 3].norm() * torch.sin(theta_grid) * torch.cos(phi_grid)
-    y = anchor[:3, 3].norm() * torch.sin(theta_grid) * torch.sin(phi_grid)
-    z = anchor[:3, 3].norm() * torch.cos(theta_grid)
-
-    poses[:, :3, 3] = centre + torch.stack([x, y, z], dim=-1).reshape(-1, 3)
-    labels = inverse_kinematics(morph[0].double(), poses.double())[1] != -1
-
-    return morph[0].expand(num_samples ** 2, -1, -1).clone(), poses, labels
+    return poses, labels

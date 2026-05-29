@@ -37,8 +37,12 @@ class Dataset:
             for k in self.root.array_keys()
             if (match := re.search(r'^(\d+)_samples$', k))
         ])
-        self.morphologies = torch.cat([torch.from_numpy(self.root[f"{idx}_morphologies"][:]) for idx in file_indices],
-                                      dim=0)
+        self.morphologies = [torch.from_numpy(self.root[f"{idx}_morphologies"][:]) for idx in file_indices]
+        max_dof = max([morph.shape[1] for morph in self.morphologies])
+        self.morphologies = [torch.cat([m, torch.zeros(m.shape[0], max_dof - m.shape[1], 3)], dim=1) for m in
+                             self.morphologies]
+        self.morphologies = torch.cat(self.morphologies, dim=0)
+
         self.keys = [f"{idx}_samples" for idx in file_indices]
 
         self.chunk_size = self.root[self.keys[0]].chunks[0]
@@ -109,21 +113,6 @@ class Dataset:
         return batch
 
     @jaxtyped(typechecker=beartype)
-    def _get_morph(self, morph_id: Int[Tensor, "batch_size"]) -> Float[Tensor, " batch dof 3"]:
-        """
-        Retrieve the morphology for a morphology index.
-
-        Args:
-            morph_id: Morphology index.
-        Returns:
-            Morphology.
-        """
-        morph = self.morphologies[morph_id]
-        dof = (morph[0].abs().sum(dim=1) != 0).sum().item()
-        morph = morph[:, :dof, :]
-        return morph
-
-    @jaxtyped(typechecker=beartype)
     def _get_pose(self, batch_chunk) -> Float[Tensor, " batch 9"]:
         """
        Retrieve the pose from the batch chunk.
@@ -143,7 +132,7 @@ class Dataset:
     ]:
         batch = self._get_batch(batch_idx)
 
-        morph = self._get_morph(batch[:, 0].long())
+        morph = self.morphologies[batch[:, 0].long()]
         pose = self._get_pose(batch[:, 1:-1])
         label = batch[:, -1].bool()
 
@@ -173,7 +162,7 @@ class Dataset:
     def get_random_batch(self) -> tuple[
         Float[Tensor, "batch dof 3"],
         Float[Tensor, "batch 9"],
-        Float[Tensor, "batch"]
+        Bool[Tensor, "batch"]
     ]:
         """
         Return a random batch
@@ -188,7 +177,7 @@ class Dataset:
     def get_semi_random_batch(self) -> tuple[
         Float[Tensor, "batch dof 3"],
         Float[Tensor, "batch 9"],
-        Float[Tensor, "batch"]
+        Bool[Tensor, "batch"]
     ]:
         """
         Get a random batch within the current chunk.

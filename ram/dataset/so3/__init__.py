@@ -281,7 +281,7 @@ def from_vector(vec: Float[Tensor, "*batch 6"]) -> Float[Tensor, "*batch 3 3"]:
 
 @jaxtyped(typechecker=beartype)
 @torch.compile
-def to_index(orientation: Float[Tensor, "batch 3 3"]) -> Float[Tensor, "batch 3"]:
+def to_index(orientation: Float[Tensor, "*batch 3 3"]) -> Float[Tensor, "*batch 3"]:
     """
     Convert 3x3 rotation matrix to rotation vector (axis-angle representation), which we use for indexing the lookup.
 
@@ -300,7 +300,7 @@ def to_index(orientation: Float[Tensor, "batch 3 3"]) -> Float[Tensor, "batch 3"
 
 @jaxtyped(typechecker=beartype)
 @torch.compile
-def from_index(rot_vec: Float[Tensor, "batch 3"]) -> Float[Tensor, "batch 3 3"]:
+def from_index(rot_vec: Float[Tensor, "*batch 3"]) -> Float[Tensor, "*batch 3 3"]:
     """
     Convert the rotation vector, which we use for indexing the lookup, to 3x3 rotation matrix.
 
